@@ -12,7 +12,10 @@
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
     "@uppy/core": "^4.4.7",
     "@uppy/dashboard": "^4.3.4",
+    "@uppy/locales": "^4.6.0",
     "@uppy/react": "^4.4.0",
+    "@uppy/xhr-upload": "^4.3.3",
+    "firebase": "^12.0.0",
     "next": "15.4.4",
     "react": "19.1.0",
     "react-dom": "19.1.0"

@@ -1,7 +1,14 @@
-export default function Home() {
+import Link from "next/link";
+
+export default function UppyDashboard() {
   return (
-    <div className="flex flex-col items-center justify-center h-screen">
-      <h1 className="text-4xl font-bold">Hello World</h1>
+    <div className="w-full max-w-4xl mx-auto p-4">
+      <Link
+        href="/upload"
+        className="flex items-center justify-center border border-gray-300 rounded-md p-4"
+      >
+        Upload
+      </Link>
     </div>
   );
 }
