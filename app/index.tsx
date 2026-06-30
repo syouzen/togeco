@@ -10,7 +10,7 @@ import { claimState, filterGifticons } from '@/lib/domain';
 import { appErrorMessage } from '@/lib/errors';
 import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
 import { type GifticonSortMode, type GifticonStatusTab, claimGifticon, listGifticons, markGifticonUsed, retryPendingUsageRecords, spendGifticon } from '@/lib/gifticons';
-import { isAuthenticated, logout, pb } from '@/lib/pb';
+import { isAuthenticated, pb } from '@/lib/pb';
 import { useTheme, type ThemeColors } from '@/lib/theme';
 import type { Gifticon } from '@/lib/types';
 import { displayUser } from '@/lib/users';
@@ -20,7 +20,7 @@ type ClaimedFilter = 'all' | 'mine';
 type AmountKindFilter = 'all' | 'amount' | 'exchange';
 
 export default function IndexScreen() {
-  const { colors, isDark, toggleTheme } = useTheme();
+  const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<GifticonStatusTab>('AVAILABLE');
@@ -43,10 +43,6 @@ export default function IndexScreen() {
     refetch();
   }, [queryClient, refetch]));
 
-  const signOut = () => {
-    logout();
-    router.replace('/login');
-  };
 
   const invalidateGifticons = async () => {
     await queryClient.invalidateQueries({ queryKey: ['gifticons'] });
@@ -79,8 +75,7 @@ export default function IndexScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.topActions}>
-        <Pressable style={styles.topButton} onPress={toggleTheme}><Text style={styles.topButtonText}>{isDark ? '라이트' : '다크'}</Text></Pressable>
-        <Pressable style={styles.topButton} onPress={signOut}><Text style={styles.topButtonText}>로그아웃</Text></Pressable>
+        <Pressable style={styles.topButton} onPress={() => router.push('/settings')}><Text style={styles.topButtonText}>설정</Text></Pressable>
       </View>
       <FlatList
         data={visibleData}
