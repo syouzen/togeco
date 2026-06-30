@@ -54,7 +54,7 @@ export default function IndexScreen() {
   };
   const claimMutation = useMutation({ mutationFn: (item: Gifticon) => claimGifticon(item.id), onSuccess: async () => { await invalidateGifticons(); Alert.alert('찜 완료', '30분 동안 사용 예정으로 표시됩니다.'); }, onError: (error) => Alert.alert('찜 실패', appErrorMessage(error, '찜 상태를 저장하지 못했습니다. 다시 시도해주세요.')) });
   const spendMutation = useMutation({ mutationFn: ({ item, amount }: { item: Gifticon; amount: number }) => spendGifticon(item.id, item.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendTarget(null); await invalidateGifticons(); Alert.alert('차감 완료', '사용 내역에 기록했습니다.'); }, onError: (error) => Alert.alert('차감 확인 필요', appErrorMessage(error, '잔액 차감 또는 사용 내역 기록에 실패했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.')) });
-  const usedMutation = useMutation({ mutationFn: (item: Gifticon) => markGifticonUsed(item.id, item.remaining_amount ?? null), onSuccess: async () => { await invalidateGifticons(); Alert.alert('처리 완료', '다 씀으로 표시했습니다.'); }, onError: (error) => Alert.alert('처리 실패', appErrorMessage(error, '다 씀 처리에 실패했습니다. 다시 시도해주세요.')) });
+  const usedMutation = useMutation({ mutationFn: (item: Gifticon) => markGifticonUsed(item.id, item.remaining_amount ?? null), onSuccess: async () => { await invalidateGifticons(); Alert.alert('처리 완료', '모두 사용으로 표시했습니다.'); }, onError: (error) => Alert.alert('처리 실패', appErrorMessage(error, '모두 사용 처리에 실패했습니다. 다시 시도해주세요.')) });
 
   const confirmClaimedByOther = (item: Gifticon, action: () => void) => {
     const claim = claimState({ claimedBy: item.claimed_by, claimExpiresAt: item.claim_expires_at, currentUserId: pb.authStore.record?.id });

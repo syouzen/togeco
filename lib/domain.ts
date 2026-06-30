@@ -112,7 +112,7 @@ export function formatGifticonAmount(remainingAmount?: number | null, totalAmoun
 
 export function gifticonStatusLabel(status: 'DRAFT' | 'AVAILABLE' | 'USED'): string {
   if (status === 'DRAFT') return '작성중';
-  if (status === 'USED') return '다 씀';
+  if (status === 'USED') return '모두 사용';
   return '사용가능';
 }
 

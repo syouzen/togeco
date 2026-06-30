@@ -27,7 +27,7 @@ describe('gifticon amount domain', () => {
   it('formats draft, available, and used status labels', () => {
     expect(gifticonStatusLabel('DRAFT')).toBe('작성중');
     expect(gifticonStatusLabel('AVAILABLE')).toBe('사용가능');
-    expect(gifticonStatusLabel('USED')).toBe('다 씀');
+    expect(gifticonStatusLabel('USED')).toBe('모두 사용');
   });
 
   it('allows usage actions only for available gifticons', () => {

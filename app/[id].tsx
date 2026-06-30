@@ -30,7 +30,7 @@ function formatReminderLabel(offsetDays: number) {
 
 function formatUsageAction(actionType?: string) {
   if (actionType === 'REVERT') return '되돌림';
-  if (actionType === 'MARK_USED') return '다 씀';
+  if (actionType === 'MARK_USED') return '모두 사용';
   return '부분 차감';
 }
 
@@ -68,7 +68,7 @@ export default function DetailScreen() {
   };
   const hasAmount = query.data?.remaining_amount != null && query.data?.total_amount != null;
   const spendMutation = useMutation({ mutationFn: (amount: number) => spendGifticon(id, query.data?.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendOpen(false); await invalidate(); }, onError: (error) => Alert.alert('차감 확인 필요', appErrorMessage(error, '잔액 차감 또는 사용 내역 기록에 실패했습니다. 새로고침 후 다시 시도해주세요.')) });
-  const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount ? query.data?.remaining_amount ?? 0 : null), onSuccess: invalidate, onError: (error) => Alert.alert('처리 실패', appErrorMessage(error, '다 씀 처리에 실패했습니다. 다시 시도해주세요.')) });
+  const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount ? query.data?.remaining_amount ?? 0 : null), onSuccess: invalidate, onError: (error) => Alert.alert('처리 실패', appErrorMessage(error, '모두 사용 처리에 실패했습니다. 다시 시도해주세요.')) });
   const publishMutation = useMutation({ mutationFn: () => publishDraftGifticon(id), onSuccess: invalidate, onError: (error) => Alert.alert('게시 실패', appErrorMessage(error, '작성 중 기프티콘을 사용 가능 상태로 바꾸지 못했습니다.')) });
   const claimMutation = useMutation({ mutationFn: () => claimGifticon(id), onSuccess: invalidate, onError: (error) => Alert.alert('찜 실패', appErrorMessage(error, '찜 상태를 저장하지 못했습니다.')) });
   const unclaimMutation = useMutation({ mutationFn: () => unclaimGifticon(id), onSuccess: invalidate, onError: (error) => Alert.alert('찜 해제 실패', appErrorMessage(error, '찜을 해제하지 못했습니다.')) });
@@ -160,7 +160,7 @@ export default function DetailScreen() {
           {claimedByMe ? <Pressable style={[styles.action, styles.secondary]} disabled={unclaimMutation.isPending} onPress={() => unclaimMutation.mutate()}><Text style={styles.secondaryText}>찜 해제</Text></Pressable> : !claim.active && !draft ? <Pressable style={[styles.action, styles.claim]} disabled={claimMutation.isPending} onPress={() => claimMutation.mutate()}><Text style={styles.claimButtonText}>찜하기</Text></Pressable> : null}
           <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>매장 사용 모드</Text></Pressable>
           <Pressable style={[styles.action, styles.primary, !canSpend && styles.disabled]} disabled={!canSpend || spendMutation.isPending} onPress={() => confirmClaimedByOther(() => setSpendOpen(true))}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
-          <Pressable style={[styles.action, styles.secondary, !usageActionsEnabled && styles.disabled]} disabled={!usageActionsEnabled || usedMutation.isPending} onPress={() => confirmClaimedByOther(() => usedMutation.mutate())}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
+          <Pressable style={[styles.action, styles.secondary, !usageActionsEnabled && styles.disabled]} disabled={!usageActionsEnabled || usedMutation.isPending} onPress={() => confirmClaimedByOther(() => usedMutation.mutate())}><Text style={styles.secondaryText}>모두 사용</Text></Pressable>
           <Pressable style={[styles.action, styles.danger]} disabled={deleteMutation.isPending} onPress={confirmDelete}><Text style={styles.dangerText}>삭제</Text></Pressable>
         </View>
         <View style={styles.panel}>

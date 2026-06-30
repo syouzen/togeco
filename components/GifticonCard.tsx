@@ -49,7 +49,7 @@ export function GifticonCard({ item, onPress, onClaim, onSpend, onMarkUsed, isBu
           <View style={styles.quickActions}>
             {!claim.active && onClaim ? <Pressable style={[styles.quickButton, styles.claimButton, isBusy && styles.disabled]} disabled={isBusy} onPress={(event) => { event.stopPropagation(); onClaim(item); }}><Text style={styles.claimButtonText}>찜</Text></Pressable> : null}
             {onSpend ? <Pressable style={[styles.quickButton, styles.spendButton, (!canSpend || isBusy) && styles.disabled]} disabled={!canSpend || isBusy} onPress={(event) => { event.stopPropagation(); onSpend(item); }}><Text style={styles.spendButtonText}>차감</Text></Pressable> : null}
-            {onMarkUsed ? <Pressable style={[styles.quickButton, styles.usedButton, isBusy && styles.disabled]} disabled={isBusy} onPress={(event) => { event.stopPropagation(); onMarkUsed(item); }}><Text style={styles.usedButtonText}>다 씀</Text></Pressable> : null}
+            {onMarkUsed ? <Pressable style={[styles.quickButton, styles.usedButton, isBusy && styles.disabled]} disabled={isBusy} onPress={(event) => { event.stopPropagation(); onMarkUsed(item); }}><Text style={styles.usedButtonText}>모두 사용</Text></Pressable> : null}
           </View>
         ) : null}
       </View>
