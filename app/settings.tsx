@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { appErrorMessage } from '@/lib/errors';
 import { logout, pb } from '@/lib/pb';
+import { DEFAULT_EXPIRY_REMINDER_OFFSETS, getDefaultExpiryReminderOffsets, setDefaultExpiryReminderOffsets, type ExpiryReminderOffset } from '@/lib/reminders';
 import { useTheme, type ThemeColors, type ThemePreference } from '@/lib/theme';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string; help: string }[] = [
@@ -29,11 +30,15 @@ export default function SettingsScreen() {
   const [checking, setChecking] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'idle' | 'checking' | 'ok' | 'failed'>('idle');
   const [connectionMessage, setConnectionMessage] = useState('아직 확인하지 않았습니다.');
+  const [defaultOffsets, setDefaultOffsets] = useState<ExpiryReminderOffset[]>([]);
 
   useEffect(() => {
     Notifications.getPermissionsAsync()
       .then((result) => setPermission(result.status))
       .catch(() => setPermission(null));
+    getDefaultExpiryReminderOffsets()
+      .then(setDefaultOffsets)
+      .catch(() => setDefaultOffsets([...DEFAULT_EXPIRY_REMINDER_OFFSETS]));
   }, []);
 
   const requestPermission = async () => {
@@ -57,6 +62,15 @@ export default function SettingsScreen() {
     } finally {
       setChecking(false);
     }
+  };
+
+
+  const toggleDefaultOffset = async (offset: ExpiryReminderOffset) => {
+    const next = defaultOffsets.includes(offset)
+      ? defaultOffsets.filter((value) => value !== offset)
+      : [...defaultOffsets, offset].sort((a, b) => b - a);
+    setDefaultOffsets(next);
+    await setDefaultExpiryReminderOffsets(next);
   };
 
   const signOut = () => {
@@ -100,6 +114,14 @@ export default function SettingsScreen() {
           <Pressable style={styles.secondaryButton} onPress={() => Linking.openSettings()}><Text style={styles.secondaryText}>기기 설정 열기</Text></Pressable>
         </View>
         {permission === Notifications.PermissionStatus.DENIED ? <Text style={styles.warning}>권한이 거부되어 만료 알림이 울리지 않습니다. 기기 설정에서 알림을 허용해주세요.</Text> : null}
+        <Text style={styles.sectionTitle}>기본 만료 알림</Text>
+        <Text style={styles.help}>새 기프티콘 저장 시 선택한 날짜만 자동 예약합니다. 서버 동기화 없이 이 기기에만 저장됩니다.</Text>
+        <View style={styles.rowActions}>
+          {DEFAULT_EXPIRY_REMINDER_OFFSETS.map((offset) => {
+            const active = defaultOffsets.includes(offset);
+            return <Pressable key={offset} style={[styles.offsetChip, active && styles.offsetChipActive]} onPress={() => toggleDefaultOffset(offset)}><Text style={[styles.offsetChipText, active && styles.offsetChipTextActive]}>{offset}일 전</Text></Pressable>;
+          })}
+        </View>
       </View>
 
       <View style={styles.panel}>
@@ -149,5 +171,9 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   secondaryText: { color: colors.primarySoftText, fontWeight: '900' },
   dangerButton: { borderRadius: 16, backgroundColor: colors.dangerSoft, alignItems: 'center', paddingVertical: 14 },
   dangerText: { color: colors.dangerText, fontWeight: '900', fontSize: 16 },
+  offsetChip: { borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 9 },
+  offsetChipActive: { backgroundColor: colors.successSoft, borderColor: colors.success },
+  offsetChipText: { color: colors.textMuted, fontWeight: '900' },
+  offsetChipTextActive: { color: colors.successText },
   disabled: { opacity: 0.55 },
 });

@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 
 import { ensureAuth, pb } from './pb';
@@ -5,7 +6,9 @@ import type { Gifticon, Reminder } from './types';
 
 const COLLECTION = 'reminders';
 const DEFAULT_REMINDER_HOUR = 9;
+const REMINDER_OFFSETS_STORAGE_KEY = 'togeco_default_expiry_reminder_offsets';
 export const DEFAULT_EXPIRY_REMINDER_OFFSETS = [30, 7, 3, 1] as const;
+export type ExpiryReminderOffset = typeof DEFAULT_EXPIRY_REMINDER_OFFSETS[number];
 
 function currentUserId() {
   const user = pb.authStore.record?.id;
@@ -82,6 +85,23 @@ export async function setReminder(gifticonId: string, name: string, remindAt: Da
   return reminder;
 }
 
+export async function getDefaultExpiryReminderOffsets(): Promise<ExpiryReminderOffset[]> {
+  const raw = await AsyncStorage.getItem(REMINDER_OFFSETS_STORAGE_KEY).catch(() => null);
+  if (!raw) return [...DEFAULT_EXPIRY_REMINDER_OFFSETS];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...DEFAULT_EXPIRY_REMINDER_OFFSETS];
+    const allowed = new Set<number>(DEFAULT_EXPIRY_REMINDER_OFFSETS);
+    return parsed.filter((value): value is ExpiryReminderOffset => allowed.has(value));
+  } catch {
+    return [...DEFAULT_EXPIRY_REMINDER_OFFSETS];
+  }
+}
+
+export async function setDefaultExpiryReminderOffsets(offsets: readonly ExpiryReminderOffset[]): Promise<void> {
+  await AsyncStorage.setItem(REMINDER_OFFSETS_STORAGE_KEY, JSON.stringify(offsets));
+}
+
 export async function setDefaultExpiryReminders(gifticonId: string, name: string, expiredAt?: string | null): Promise<Reminder[]> {
   await ensureAuth();
   if (!expiredAt) return [];
@@ -89,8 +109,9 @@ export async function setDefaultExpiryReminders(gifticonId: string, name: string
 
   const user = currentUserId();
   const saved: Reminder[] = [];
+  const offsets = await getDefaultExpiryReminderOffsets();
 
-  for (const offsetDays of DEFAULT_EXPIRY_REMINDER_OFFSETS) {
+  for (const offsetDays of offsets) {
     const remindAt = beforeExpiry(expiredAt, offsetDays);
     if (isPastReminderDate(remindAt)) continue;
 
