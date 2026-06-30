@@ -20,6 +20,15 @@ export type ClaimStateInput = {
   now?: Date;
 };
 
+export type GifticonListFilter = {
+  query?: string;
+  expiry?: 'all' | 'soon';
+  claimed?: 'all' | 'mine';
+  amountKind?: 'all' | 'amount' | 'exchange';
+  currentUserId?: string | null;
+  now?: Date;
+};
+
 export type ClaimState = {
   active: boolean;
   byMe: boolean;
@@ -113,6 +122,30 @@ export function canUseGifticon(status: 'DRAFT' | 'AVAILABLE' | 'USED'): boolean 
 
 export function quickSpendPresets(remainingAmount: number): number[] {
   return Array.from(new Set([1000, 3000, 5000, remainingAmount].filter((amount) => amount > 0 && amount <= remainingAmount)));
+}
+
+export function filterGifticons<T extends { name?: string | null; memo?: string | null; barcode?: string | null; expired_at?: string | null; claimed_by?: string | null; claim_expires_at?: string | null; remaining_amount?: number | null; total_amount?: number | null }>(items: T[], filter: GifticonListFilter): T[] {
+  const query = filter.query?.trim().toLocaleLowerCase('ko-KR') ?? '';
+  const now = filter.now ?? new Date();
+  const soonCutoff = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  return items.filter((item) => {
+    if (query) {
+      const haystack = [item.name, item.memo, item.barcode].map((value) => value?.toLocaleLowerCase('ko-KR') ?? '').join(' ');
+      if (!haystack.includes(query)) return false;
+    }
+    if (filter.expiry === 'soon') {
+      if (!item.expired_at) return false;
+      const expiryTime = new Date(`${item.expired_at.slice(0, 10)}T23:59:59.999Z`).getTime();
+      if (Number.isNaN(expiryTime) || expiryTime < now.getTime() || expiryTime > soonCutoff.getTime()) return false;
+    }
+    if (filter.claimed === 'mine') {
+      const claim = claimState({ claimedBy: item.claimed_by, claimExpiresAt: item.claim_expires_at, currentUserId: filter.currentUserId, now });
+      if (!claim.byMe) return false;
+    }
+    if (filter.amountKind === 'amount' && (item.remaining_amount == null || item.total_amount == null)) return false;
+    if (filter.amountKind === 'exchange' && (item.remaining_amount != null || item.total_amount != null)) return false;
+    return true;
+  });
 }
 
 export function validateLoginInput(email: string, password: string): string | null {

@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AmountModal } from '@/components/AmountModal';
 import { GifticonCard } from '@/components/GifticonCard';
-import { claimState } from '@/lib/domain';
+import { claimState, filterGifticons } from '@/lib/domain';
 import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
 import { type GifticonSortMode, type GifticonStatusTab, claimGifticon, listGifticons, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
 import { isAuthenticated, logout, pb } from '@/lib/pb';
@@ -13,14 +13,22 @@ import { useTheme, type ThemeColors } from '@/lib/theme';
 import type { Gifticon } from '@/lib/types';
 import { displayUser } from '@/lib/users';
 
+type ExpiryFilter = 'all' | 'soon';
+type ClaimedFilter = 'all' | 'mine';
+type AmountKindFilter = 'all' | 'amount' | 'exchange';
+
 export default function IndexScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<GifticonStatusTab>('AVAILABLE');
   const [sortMode, setSortMode] = useState<GifticonSortMode>('latest');
+  const [searchText, setSearchText] = useState('');
+  const [expiryFilter, setExpiryFilter] = useState<ExpiryFilter>('all');
+  const [claimedFilter, setClaimedFilter] = useState<ClaimedFilter>('all');
+  const [amountKindFilter, setAmountKindFilter] = useState<AmountKindFilter>('all');
   const [spendTarget, setSpendTarget] = useState<Gifticon | null>(null);
-  const query = useQuery({ queryKey: ['gifticons', { tab, sortMode }], queryFn: () => listGifticons(sortMode, tab), enabled: isAuthenticated() });
+  const query = useQuery({ queryKey: ['gifticons', { tab, sortMode, searchText, expiryFilter, claimedFilter, amountKindFilter }], queryFn: () => listGifticons(sortMode, tab), enabled: isAuthenticated() });
   const { refetch } = query;
   useRealtimeGifticons();
 
@@ -54,8 +62,16 @@ export default function IndexScreen() {
   };
 
   const busy = claimMutation.isPending || spendMutation.isPending || usedMutation.isPending;
+  const hasActiveFilters = searchText.trim().length > 0 || expiryFilter !== 'all' || claimedFilter !== 'all' || amountKindFilter !== 'all';
+  const visibleData = useMemo(() => filterGifticons(query.data ?? [], { query: searchText, expiry: expiryFilter, claimed: claimedFilter, amountKind: amountKindFilter, currentUserId: pb.authStore.record?.id }), [amountKindFilter, claimedFilter, expiryFilter, query.data, searchText]);
+  const resetFilters = () => {
+    setSearchText('');
+    setExpiryFilter('all');
+    setClaimedFilter('all');
+    setAmountKindFilter('all');
+  };
 
-  const emptyTitle = tab === 'DRAFT' ? '작성 중인 기프티콘이 없습니다.' : tab === 'AVAILABLE' ? '사용 가능한 기프티콘이 없습니다.' : tab === 'USED' ? '다 쓴 기프티콘이 없습니다.' : '등록된 기프티콘이 없습니다.';
+  const emptyTitle = hasActiveFilters ? '조건에 맞는 기프티콘이 없습니다.' : tab === 'DRAFT' ? '작성 중인 기프티콘이 없습니다.' : tab === 'AVAILABLE' ? '사용 가능한 기프티콘이 없습니다.' : tab === 'USED' ? '다 쓴 기프티콘이 없습니다.' : '등록된 기프티콘이 없습니다.';
 
   return (
     <View style={styles.container}>
@@ -64,15 +80,15 @@ export default function IndexScreen() {
         <Pressable style={styles.topButton} onPress={signOut}><Text style={styles.topButtonText}>로그아웃</Text></Pressable>
       </View>
       <FlatList
-        data={query.data ?? []}
+        data={visibleData}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={(query.data?.length ?? 0) === 0 ? styles.emptyList : styles.list}
-        ListHeaderComponent={<View style={styles.header}><Text style={styles.headerTitle}>기프티콘</Text><View style={styles.chipRow}><Pressable style={[styles.chip, tab === 'AVAILABLE' && styles.chipActive]} onPress={() => setTab('AVAILABLE')}><Text style={[styles.chipText, tab === 'AVAILABLE' && styles.chipTextActive]}>사용가능</Text></Pressable><Pressable style={[styles.chip, tab === 'DRAFT' && styles.chipActive]} onPress={() => setTab('DRAFT')}><Text style={[styles.chipText, tab === 'DRAFT' && styles.chipTextActive]}>작성중</Text></Pressable><Pressable style={[styles.chip, tab === 'USED' && styles.chipActive]} onPress={() => setTab('USED')}><Text style={[styles.chipText, tab === 'USED' && styles.chipTextActive]}>다씀</Text></Pressable><Pressable style={[styles.chip, tab === 'ALL' && styles.chipActive]} onPress={() => setTab('ALL')}><Text style={[styles.chipText, tab === 'ALL' && styles.chipTextActive]}>전체</Text></Pressable></View><View style={styles.sortRow}><Pressable style={[styles.sortButton, sortMode === 'latest' && styles.sortButtonActive]} onPress={() => setSortMode('latest')}><Text style={[styles.sortText, sortMode === 'latest' && styles.sortTextActive]}>최신순</Text></Pressable><Pressable style={[styles.sortButton, sortMode === 'expiring' && styles.sortButtonActive]} onPress={() => setSortMode('expiring')}><Text style={[styles.sortText, sortMode === 'expiring' && styles.sortTextActive]}>임박순</Text></Pressable></View></View>}
-        renderItem={({ item }) => <GifticonCard item={item} isBusy={busy} onPress={() => router.push(`/${item.id}`)} onClaim={(target) => claimMutation.mutate(target)} onSpend={(target) => confirmClaimedByOther(target, () => setSpendTarget(target))} onMarkUsed={(target) => confirmClaimedByOther(target, () => usedMutation.mutate(target))} />}
+        contentContainerStyle={visibleData.length === 0 ? styles.emptyList : styles.list}
+        ListHeaderComponent={<View style={styles.header}><Text style={styles.headerTitle}>기프티콘</Text><TextInput value={searchText} onChangeText={setSearchText} placeholder="이름, 메모, 바코드 검색" placeholderTextColor={colors.textSubtle} style={styles.searchInput} /><View style={styles.chipRow}><Pressable style={[styles.chip, tab === 'AVAILABLE' && styles.chipActive]} onPress={() => setTab('AVAILABLE')}><Text style={[styles.chipText, tab === 'AVAILABLE' && styles.chipTextActive]}>사용가능</Text></Pressable><Pressable style={[styles.chip, tab === 'DRAFT' && styles.chipActive]} onPress={() => setTab('DRAFT')}><Text style={[styles.chipText, tab === 'DRAFT' && styles.chipTextActive]}>작성중</Text></Pressable><Pressable style={[styles.chip, tab === 'USED' && styles.chipActive]} onPress={() => setTab('USED')}><Text style={[styles.chipText, tab === 'USED' && styles.chipTextActive]}>다씀</Text></Pressable><Pressable style={[styles.chip, tab === 'ALL' && styles.chipActive]} onPress={() => setTab('ALL')}><Text style={[styles.chipText, tab === 'ALL' && styles.chipTextActive]}>전체</Text></Pressable></View><View style={styles.sortRow}><Pressable style={[styles.sortButton, sortMode === 'latest' && styles.sortButtonActive]} onPress={() => setSortMode('latest')}><Text style={[styles.sortText, sortMode === 'latest' && styles.sortTextActive]}>최신순</Text></Pressable><Pressable style={[styles.sortButton, sortMode === 'expiring' && styles.sortButtonActive]} onPress={() => setSortMode('expiring')}><Text style={[styles.sortText, sortMode === 'expiring' && styles.sortTextActive]}>임박순</Text></Pressable></View><View style={styles.filterRow}><Pressable style={[styles.filterButton, expiryFilter === 'soon' && styles.filterButtonActive]} onPress={() => setExpiryFilter(expiryFilter === 'soon' ? 'all' : 'soon')}><Text style={[styles.filterText, expiryFilter === 'soon' && styles.filterTextActive]}>만료 임박</Text></Pressable><Pressable style={[styles.filterButton, claimedFilter === 'mine' && styles.filterButtonActive]} onPress={() => setClaimedFilter(claimedFilter === 'mine' ? 'all' : 'mine')}><Text style={[styles.filterText, claimedFilter === 'mine' && styles.filterTextActive]}>내 찜</Text></Pressable><Pressable style={[styles.filterButton, amountKindFilter === 'amount' && styles.filterButtonActive]} onPress={() => setAmountKindFilter(amountKindFilter === 'amount' ? 'all' : 'amount')}><Text style={[styles.filterText, amountKindFilter === 'amount' && styles.filterTextActive]}>금액권</Text></Pressable><Pressable style={[styles.filterButton, amountKindFilter === 'exchange' && styles.filterButtonActive]} onPress={() => setAmountKindFilter(amountKindFilter === 'exchange' ? 'all' : 'exchange')}><Text style={[styles.filterText, amountKindFilter === 'exchange' && styles.filterTextActive]}>교환권</Text></Pressable>{hasActiveFilters ? <Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>초기화</Text></Pressable> : null}</View></View>}
+        renderItem={({ item }) => <GifticonCard item={item} isBusy={busy} onPress={() => router.push(`/${item.id}`)} onClaim={(target: Gifticon) => claimMutation.mutate(target)} onSpend={(target: Gifticon) => confirmClaimedByOther(target, () => setSpendTarget(target))} onMarkUsed={(target: Gifticon) => confirmClaimedByOther(target, () => usedMutation.mutate(target))} />}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         refreshing={query.isRefetching}
         onRefresh={query.refetch}
-        ListEmptyComponent={query.isLoading ? <ActivityIndicator size="large" color={colors.primary} /> : <View style={styles.emptyBox}><Text style={styles.emptyTitle}>{emptyTitle}</Text><Text style={styles.emptyText}>오른쪽 아래 + 버튼으로 첫 기프티콘을 올려보세요.</Text></View>}
+        ListEmptyComponent={query.isLoading ? <ActivityIndicator size="large" color={colors.primary} /> : <View style={styles.emptyBox}><Text style={styles.emptyTitle}>{emptyTitle}</Text><Text style={styles.emptyText}>{hasActiveFilters ? '검색어나 필터를 초기화해보세요.' : '오른쪽 아래 + 버튼으로 첫 기프티콘을 올려보세요.'}</Text>{hasActiveFilters ? <Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>필터 초기화</Text></Pressable> : null}</View>}
       />
       {query.error ? <Text style={styles.error}>목록을 불러오지 못했습니다. 당겨서 다시 시도하세요.</Text> : null}
       <Pressable style={styles.fab} onPress={() => router.push('/add')}><Text style={styles.fabText}>+</Text></Pressable>
@@ -86,6 +102,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   list: { padding: 18, paddingTop: 48, paddingBottom: 120 },
   header: { gap: 12, marginBottom: 16 },
   headerTitle: { fontSize: 28, fontWeight: '900', color: colors.text },
+  searchInput: { borderWidth: 1, borderColor: colors.border, borderRadius: 16, backgroundColor: colors.input, color: colors.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 16, fontWeight: '700' },
   chipRow: { flexDirection: 'row', gap: 8 },
   chip: { borderRadius: 999, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 14, paddingVertical: 9 },
   chipActive: { backgroundColor: colors.successSoft, borderColor: colors.success },
@@ -96,6 +113,13 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   sortButtonActive: { backgroundColor: colors.primary },
   sortText: { color: colors.textMuted, fontWeight: '900' },
   sortTextActive: { color: colors.primaryText },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  filterButton: { borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 8 },
+  filterButtonActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  filterText: { color: colors.textMuted, fontWeight: '900' },
+  filterTextActive: { color: colors.primarySoftText },
+  resetButton: { borderRadius: 999, backgroundColor: colors.dangerSoft, paddingHorizontal: 12, paddingVertical: 8 },
+  resetText: { color: colors.dangerText, fontWeight: '900' },
   topActions: { position: 'absolute', top: 10, right: 18, zIndex: 2, flexDirection: 'row', gap: 8 },
   topButton: { borderRadius: 999, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, paddingVertical: 7 },
   topButtonText: { color: colors.textMuted, fontWeight: '900' },
