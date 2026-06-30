@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canUseGifticon, claimExpiresAt, claimState, formatWon, gifticonStatusLabel, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
+import { canUseGifticon, claimExpiresAt, claimState, formatWon, gifticonStatusLabel, quickSpendPresets, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
 
 describe('gifticon amount domain', () => {
   it('parses positive won amounts and ignores commas', () => {
@@ -34,6 +34,12 @@ describe('gifticon amount domain', () => {
     expect(canUseGifticon('AVAILABLE')).toBe(true);
     expect(canUseGifticon('DRAFT')).toBe(false);
     expect(canUseGifticon('USED')).toBe(false);
+  });
+
+  it('builds quick spend presets within the remaining balance and includes full amount', () => {
+    expect(quickSpendPresets(4200)).toEqual([1000, 3000, 4200]);
+    expect(quickSpendPresets(7000)).toEqual([1000, 3000, 5000, 7000]);
+    expect(quickSpendPresets(1000)).toEqual([1000]);
   });
 
   it('validates login input before requesting PocketBase auth', () => {

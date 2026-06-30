@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { claimState, formatGifticonAmount, gifticonStatusLabel } from '@/lib/domain';
+import { claimState, canUseGifticon, formatGifticonAmount, gifticonStatusLabel } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { getGifticonImageUrl } from '@/lib/gifticons';
 import { pb } from '@/lib/pb';
@@ -9,9 +9,16 @@ import { useTheme, type ThemeColors } from '@/lib/theme';
 import type { Gifticon } from '@/lib/types';
 import { displayUser } from '@/lib/users';
 
-type Props = { item: Gifticon; onPress: () => void };
+type Props = {
+  item: Gifticon;
+  onPress: () => void;
+  onClaim?: (item: Gifticon) => void;
+  onSpend?: (item: Gifticon) => void;
+  onMarkUsed?: (item: Gifticon) => void;
+  isBusy?: boolean;
+};
 
-export function GifticonCard({ item, onPress }: Props) {
+export function GifticonCard({ item, onPress, onClaim, onSpend, onMarkUsed, isBusy = false }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const used = item.status === 'USED';
@@ -21,6 +28,8 @@ export function GifticonCard({ item, onPress }: Props) {
   const expired = expiry.state === 'expired';
   const currentUserId = pb.authStore.record?.id;
   const claim = claimState({ claimedBy: item.claimed_by, claimExpiresAt: item.claim_expires_at, currentUserId });
+  const usageActionsEnabled = canUseGifticon(item.status);
+  const canSpend = usageActionsEnabled && item.remaining_amount != null && item.total_amount != null;
   const claimedByMe = claim.byMe;
   const claimedByOther = claim.byOther;
   return (
@@ -36,6 +45,13 @@ export function GifticonCard({ item, onPress }: Props) {
         {claim.active ? <Text style={[styles.claimText, claimedByMe && styles.claimMine, claimedByOther && styles.claimOther]}>{claimedByMe ? '내 찜' : `${displayUser(item.expand?.claimed_by)} 사용 예정`}</Text> : null}
         {item.expired_at ? <Text style={[styles.meta, expired && styles.expiredMeta]}>유효기간 {item.expired_at.slice(0, 10)}</Text> : null}
         {item.memo ? <Text style={styles.memo} numberOfLines={1}>{item.memo}</Text> : null}
+        {usageActionsEnabled ? (
+          <View style={styles.quickActions}>
+            {!claim.active && onClaim ? <Pressable style={[styles.quickButton, styles.claimButton, isBusy && styles.disabled]} disabled={isBusy} onPress={(event) => { event.stopPropagation(); onClaim(item); }}><Text style={styles.claimButtonText}>찜</Text></Pressable> : null}
+            {onSpend ? <Pressable style={[styles.quickButton, styles.spendButton, (!canSpend || isBusy) && styles.disabled]} disabled={!canSpend || isBusy} onPress={(event) => { event.stopPropagation(); onSpend(item); }}><Text style={styles.spendButtonText}>차감</Text></Pressable> : null}
+            {onMarkUsed ? <Pressable style={[styles.quickButton, styles.usedButton, isBusy && styles.disabled]} disabled={isBusy} onPress={(event) => { event.stopPropagation(); onMarkUsed(item); }}><Text style={styles.usedButtonText}>다 씀</Text></Pressable> : null}
+          </View>
+        ) : null}
       </View>
     </Pressable>
   );
@@ -56,6 +72,15 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   claimOther: { color: colors.warningText },
   expiredMeta: { color: colors.textSubtle },
   memo: { color: colors.textSubtle },
+  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 2 },
+  quickButton: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  claimButton: { backgroundColor: colors.successSoft },
+  spendButton: { backgroundColor: colors.primary },
+  usedButton: { backgroundColor: colors.primarySoft },
+  disabled: { opacity: 0.45 },
+  claimButtonText: { color: colors.successText, fontWeight: '900' },
+  spendButtonText: { color: colors.primaryText, fontWeight: '900' },
+  usedButtonText: { color: colors.primarySoftText, fontWeight: '900' },
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   availableBadge: { backgroundColor: colors.successSoft },
   usedBadge: { backgroundColor: colors.dangerSoft },
