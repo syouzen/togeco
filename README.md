@@ -6,7 +6,7 @@
 
 - Expo + React Native + TypeScript
 - expo-router
-- PocketBase JS SDK
+- PocketBase JS SDK + AsyncStorage auth persistence
 - TanStack Query
 - expo-image-picker / expo-image-manipulator
 
@@ -18,11 +18,13 @@ cp .env.example .env
 npm start
 ```
 
-`.env`에는 오너가 준비한 PocketBase 공용 계정 값을 넣습니다. 실제 값은 커밋하지 않습니다.
+`.env`에는 PocketBase URL만 넣습니다. 친구별 계정 이메일/비밀번호는 앱 로그인 화면에서 입력하고, 토큰은 AsyncStorage에 저장되어 재실행 후에도 유지됩니다.
 
 ```env
 EXPO_PUBLIC_PB_URL=https://your-pb-host
 ```
+
+계정은 PocketBase 어드민에서 오너가 미리 생성합니다. 앱에는 셀프 회원가입이 없습니다.
 
 ## Scripts
 

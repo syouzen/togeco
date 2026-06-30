@@ -20,6 +20,7 @@ Build a personal app for a small group to share gifticon images and jointly mana
 - `@tanstack/react-query` for server state
 - `expo-image-picker` for image selection
 - `expo-image-manipulator` for pre-upload resize/compression
+- `@react-native-async-storage/async-storage` for PocketBase token persistence
 - Avoid adding global client state libraries unless the user approves it; use React Query for server state and local component state for screen state.
 
 ## Backend contract
@@ -59,19 +60,25 @@ Important PocketBase behavior: unauthenticated List/Search may return HTTP 200 w
 
 ## Required auth pattern
 
-Create a PocketBase client similar to:
+Create a PocketBase client with `AsyncAuthStore` so users usually log in once:
 
 ```ts
-import PocketBase from 'pocketbase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import PocketBase, { AsyncAuthStore } from 'pocketbase';
 
-export const pb = new PocketBase(process.env.EXPO_PUBLIC_PB_URL);
+const store = new AsyncAuthStore({
+  save: (serialized) => AsyncStorage.setItem('togeco_auth', serialized),
+  initial: AsyncStorage.getItem('togeco_auth'),
+  clear: () => AsyncStorage.removeItem('togeco_auth'),
+});
+export const pb = new PocketBase(process.env.EXPO_PUBLIC_PB_URL, store);
 
 export async function login(email: string, password: string) {
   await pb.collection('users').authWithPassword(email, password);
 }
 ```
 
-Add a login page and gate list/add/detail screens so no gifticon query runs before auth is ready.
+Add a login page and gate list/add/detail screens so no gifticon query runs before auth is ready. On restart, restore the persisted token before deciding whether to redirect.
 
 ## App routes
 
@@ -128,6 +135,7 @@ await pb.collection('gifticons').update(id, {
 - [ ] Mark used and delete work.
 - [ ] A second device sees changes after focus/refetch or pull-to-refresh.
 - [ ] Login screen exists; no signup UI exists; data screens require a valid PocketBase auth token.
+- [ ] Login persists across app restarts through AsyncStorage; logout clears the stored token.
 
 ## Branch and release workflow
 

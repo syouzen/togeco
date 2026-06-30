@@ -11,7 +11,7 @@ The owner expects a clean rewrite. Do not preserve old app structure just becaus
 ## Non-negotiables
 
 1. Login screen is required; signup screen is not.
-2. Authenticate to PocketBase with user-entered email/password.
+2. Authenticate to PocketBase with user-entered email/password and persist the token with AsyncStorage.
 3. Do not commit real `.env` secrets.
 4. All normal PRs target `develop`, not `main`.
 5. Release flow is `develop` → `main`.
@@ -22,16 +22,22 @@ The owner expects a clean rewrite. Do not preserve old app structure just becaus
 Use `EXPO_PUBLIC_PB_URL` for the PocketBase host. Do not store account email/password in public env.
 
 ```ts
-import PocketBase from 'pocketbase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import PocketBase, { AsyncAuthStore } from 'pocketbase';
 
-export const pb = new PocketBase(process.env.EXPO_PUBLIC_PB_URL);
+const store = new AsyncAuthStore({
+  save: (serialized) => AsyncStorage.setItem('togeco_auth', serialized),
+  initial: AsyncStorage.getItem('togeco_auth'),
+  clear: () => AsyncStorage.removeItem('togeco_auth'),
+});
+export const pb = new PocketBase(process.env.EXPO_PUBLIC_PB_URL, store);
 
 export async function login(email: string, password: string) {
   await pb.collection('users').authWithPassword(email, password);
 }
 ```
 
-PocketBase List/Search rule failures can look like an empty list, so redirect unauthenticated users to `/login` before running gifticon queries.
+PocketBase List/Search rule failures can look like an empty list, so restore the stored token first and redirect unauthenticated users to `/login` before running gifticon queries.
 
 ## Target screens
 
