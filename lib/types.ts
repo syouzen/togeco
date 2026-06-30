@@ -60,3 +60,16 @@ export type GifticonCreateInput = {
   isExchange?: boolean;
   status?: 'DRAFT' | 'AVAILABLE';
 };
+
+export type GifticonUpdateInput = {
+  id: string;
+  name?: string;
+  totalAmount: number | null;
+  imageUri?: string | null;
+  memo?: string;
+  expiredAt?: string | null;
+  barcode?: string;
+  isExchange?: boolean;
+  currentTotalAmount?: number | null;
+  currentRemainingAmount?: number | null;
+};

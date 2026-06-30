@@ -124,6 +124,12 @@ export function quickSpendPresets(remainingAmount: number): number[] {
   return Array.from(new Set([1000, 3000, 5000, remainingAmount].filter((amount) => amount > 0 && amount <= remainingAmount)));
 }
 
+export function editGifticonAmounts(input: { isExchange: boolean; nextTotalAmount: number | null; currentTotalAmount?: number | null; currentRemainingAmount?: number | null }): { total_amount: number | null; remaining_amount: number | null } {
+  if (input.isExchange || input.nextTotalAmount == null) return { total_amount: null, remaining_amount: null };
+  const remaining = input.nextTotalAmount === input.currentTotalAmount ? input.currentRemainingAmount ?? input.nextTotalAmount : input.nextTotalAmount;
+  return { total_amount: input.nextTotalAmount, remaining_amount: remaining };
+}
+
 export function filterGifticons<T extends { name?: string | null; memo?: string | null; barcode?: string | null; expired_at?: string | null; claimed_by?: string | null; claim_expires_at?: string | null; remaining_amount?: number | null; total_amount?: number | null }>(items: T[], filter: GifticonListFilter): T[] {
   const query = filter.query?.trim().toLocaleLowerCase('ko-KR') ?? '';
   const now = filter.now ?? new Date();
