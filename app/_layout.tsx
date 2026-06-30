@@ -89,6 +89,7 @@ function RootStack() {
         <Stack.Screen name="login" options={{ title: '로그인', headerShown: false }} />
         <Stack.Screen name="index" options={{ title: '기프티콘' }} />
         <Stack.Screen name="add" options={{ title: '기프티콘 등록', presentation: 'modal' }} />
+        <Stack.Screen name="settings" options={{ title: '설정' }} />
         <Stack.Screen name="[id]" options={{ title: '상세' }} />
       </Stack>
     </>
