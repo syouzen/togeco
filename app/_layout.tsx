@@ -1,11 +1,22 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Redirect, Stack, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
 import '@/lib/polyfills';
 import { pb, waitForAuthStore } from '@/lib/pb';
+import { registerPushToken } from '@/lib/push';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 export default function RootLayout() {
   const queryClient = useMemo(() => new QueryClient(), []);
@@ -28,6 +39,10 @@ export default function RootLayout() {
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (ready && authed) registerPushToken();
+  }, [authed, ready]);
 
   const onLogin = segments[0] === 'login';
 

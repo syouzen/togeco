@@ -1,3 +1,34 @@
+function sendExpoPushMessages(messages) {
+  if (!messages.length) return;
+  $http.send({
+    url: 'https://exp.host/--/api/v2/push/send',
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(messages),
+    timeout: 15,
+  });
+}
+
+function pushTokenRecords(excludeUserId) {
+  const records = $app.findRecordsByFilter('push_tokens', '', '', 500, 0);
+  return records.filter((record) => {
+    const user = record.get('user');
+    const token = record.get('token');
+    return token && (!excludeUserId || user !== excludeUserId);
+  });
+}
+
+function sendGifticonPush(title, body, excludeUserId) {
+  const messages = pushTokenRecords(excludeUserId).map((record) => ({
+    to: record.get('token'),
+    title,
+    body,
+    sound: null,
+    data: { type: 'gifticon' },
+  }));
+  sendExpoPushMessages(messages);
+}
+
 routerAdd('POST', '/api/scan', (e) => {
   const body = new DynamicModel({ imageBase64: '' });
   e.bindBody(body);
@@ -50,3 +81,36 @@ routerAdd('POST', '/api/scan', (e) => {
 
   return e.json(200, JSON.parse(text));
 }, $apis.requireAuth());
+
+onRecordAfterCreateSuccess((e) => {
+  try {
+    const name = e.record.get('name') || '기프티콘 추가됨';
+    sendGifticonPush('새 기프티콘', name, e.record.get('owner'));
+  } catch (err) {
+    console.log('gifticon push failed', err);
+  }
+  e.next();
+}, 'gifticons');
+
+cronAdd('expiring-gifticon-push', '0 9 * * *', () => {
+  try {
+    const now = new Date();
+    const end = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const startText = now.toISOString().slice(0, 10) + ' 00:00:00.000Z';
+    const endText = end.toISOString().slice(0, 10) + ' 23:59:59.999Z';
+    const gifticons = $app.findRecordsByFilter(
+      'gifticons',
+      'status = "AVAILABLE" && expired_at >= {:start} && expired_at <= {:end}',
+      'expired_at',
+      50,
+      0,
+      { start: startText, end: endText },
+    );
+    if (!gifticons.length) return;
+    const names = gifticons.slice(0, 3).map((record) => record.get('name') || '이름 없는 기프티콘').join(', ');
+    const more = gifticons.length > 3 ? ' 외 ' + (gifticons.length - 3) + '개' : '';
+    sendGifticonPush('만료 임박 기프티콘', names + more + ' 확인해주세요.', '');
+  } catch (err) {
+    console.log('expiring gifticon push failed', err);
+  }
+});
