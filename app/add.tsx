@@ -74,7 +74,16 @@ export default function AddScreen() {
     if (!parsed.ok) { Alert.alert('금액 확인', parsed.message); return; }
     const expiryResult = validateExpiryInput(expiry);
     if (!expiryResult.ok) { Alert.alert('유효기간 확인', expiryResult.message); return; }
-    mutation.mutate({ imageUri, name, memo, totalAmount: parsed.amount, expiredAt: expiryResult.expiry, barcode, isExchange });
+    mutation.mutate({ imageUri, name, memo, totalAmount: parsed.amount, expiredAt: expiryResult.expiry, barcode, isExchange, status: 'AVAILABLE' });
+  };
+
+  const saveDraft = () => {
+    if (!imageUri) { Alert.alert('이미지 필요', '임시 저장할 이미지를 선택해주세요.'); return; }
+    const parsed = isExchange || amount.trim().length === 0 ? { ok: true as const, amount: null } : validateGifticonAmount(amount, false);
+    if (!parsed.ok) { Alert.alert('금액 확인', parsed.message); return; }
+    const expiryResult = validateExpiryInput(expiry);
+    if (!expiryResult.ok) { Alert.alert('유효기간 확인', expiryResult.message); return; }
+    mutation.mutate({ imageUri, name, memo, totalAmount: parsed.amount, expiredAt: expiryResult.expiry, barcode, isExchange: isExchange || parsed.amount == null, status: 'DRAFT' });
   };
 
   return (
@@ -93,7 +102,10 @@ export default function AddScreen() {
         <View style={styles.field}><Text style={styles.label}>유효기간</Text><TextInput value={expiry} onChangeText={setExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textSubtle} keyboardType="numbers-and-punctuation" style={styles.input} /></View>
         <View style={styles.field}><Text style={styles.label}>바코드</Text><TextInput value={barcode} onChangeText={setBarcode} placeholder="스캔 또는 직접 입력" placeholderTextColor={colors.textSubtle} autoCapitalize="none" style={styles.input} /></View>
         <View style={styles.field}><Text style={styles.label}>메모</Text><TextInput value={memo} onChangeText={setMemo} placeholder="선택 입력" placeholderTextColor={colors.textSubtle} style={[styles.input, styles.memo]} multiline /></View>
-        <Pressable style={[styles.save, (mutation.isPending || scanMutation.isPending) && styles.disabled]} onPress={save} disabled={mutation.isPending || scanMutation.isPending}><Text style={styles.saveText}>{mutation.isPending ? '저장 중...' : '저장'}</Text></Pressable>
+        <View style={styles.saveRow}>
+          <Pressable style={[styles.draftSave, (mutation.isPending || scanMutation.isPending) && styles.disabled]} onPress={saveDraft} disabled={mutation.isPending || scanMutation.isPending}><Text style={styles.draftSaveText}>임시 저장</Text></Pressable>
+          <Pressable style={[styles.save, (mutation.isPending || scanMutation.isPending) && styles.disabled]} onPress={save} disabled={mutation.isPending || scanMutation.isPending}><Text style={styles.saveText}>{mutation.isPending ? '저장 중...' : '저장'}</Text></Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -116,7 +128,10 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   input: { borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
   disabledInput: { backgroundColor: colors.surfaceMuted, color: colors.textSubtle },
   memo: { minHeight: 84, textAlignVertical: 'top' },
-  save: { marginTop: 8, borderRadius: 18, alignItems: 'center', backgroundColor: colors.primary, paddingVertical: 16 },
+  saveRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  save: { flex: 1, borderRadius: 18, alignItems: 'center', backgroundColor: colors.primary, paddingVertical: 16 },
+  draftSave: { flex: 1, borderRadius: 18, alignItems: 'center', backgroundColor: colors.primarySoft, paddingVertical: 16 },
   disabled: { opacity: 0.55 },
   saveText: { color: colors.primaryText, fontSize: 17, fontWeight: '900' },
+  draftSaveText: { color: colors.primarySoftText, fontSize: 17, fontWeight: '900' },
 });

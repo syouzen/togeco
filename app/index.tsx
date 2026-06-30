@@ -31,7 +31,7 @@ export default function IndexScreen() {
     router.replace('/login');
   };
 
-  const emptyTitle = tab === 'AVAILABLE' ? '사용 가능한 기프티콘이 없습니다.' : tab === 'USED' ? '다 쓴 기프티콘이 없습니다.' : '등록된 기프티콘이 없습니다.';
+  const emptyTitle = tab === 'DRAFT' ? '작성 중인 기프티콘이 없습니다.' : tab === 'AVAILABLE' ? '사용 가능한 기프티콘이 없습니다.' : tab === 'USED' ? '다 쓴 기프티콘이 없습니다.' : '등록된 기프티콘이 없습니다.';
 
   return (
     <View style={styles.container}>
@@ -43,7 +43,7 @@ export default function IndexScreen() {
         data={query.data ?? []}
         keyExtractor={(item) => item.id}
         contentContainerStyle={(query.data?.length ?? 0) === 0 ? styles.emptyList : styles.list}
-        ListHeaderComponent={<View style={styles.header}><Text style={styles.headerTitle}>기프티콘</Text><View style={styles.chipRow}><Pressable style={[styles.chip, tab === 'AVAILABLE' && styles.chipActive]} onPress={() => setTab('AVAILABLE')}><Text style={[styles.chipText, tab === 'AVAILABLE' && styles.chipTextActive]}>사용가능</Text></Pressable><Pressable style={[styles.chip, tab === 'USED' && styles.chipActive]} onPress={() => setTab('USED')}><Text style={[styles.chipText, tab === 'USED' && styles.chipTextActive]}>다씀</Text></Pressable><Pressable style={[styles.chip, tab === 'ALL' && styles.chipActive]} onPress={() => setTab('ALL')}><Text style={[styles.chipText, tab === 'ALL' && styles.chipTextActive]}>전체</Text></Pressable></View><View style={styles.sortRow}><Pressable style={[styles.sortButton, sortMode === 'latest' && styles.sortButtonActive]} onPress={() => setSortMode('latest')}><Text style={[styles.sortText, sortMode === 'latest' && styles.sortTextActive]}>최신순</Text></Pressable><Pressable style={[styles.sortButton, sortMode === 'expiring' && styles.sortButtonActive]} onPress={() => setSortMode('expiring')}><Text style={[styles.sortText, sortMode === 'expiring' && styles.sortTextActive]}>임박순</Text></Pressable></View></View>}
+        ListHeaderComponent={<View style={styles.header}><Text style={styles.headerTitle}>기프티콘</Text><View style={styles.chipRow}><Pressable style={[styles.chip, tab === 'AVAILABLE' && styles.chipActive]} onPress={() => setTab('AVAILABLE')}><Text style={[styles.chipText, tab === 'AVAILABLE' && styles.chipTextActive]}>사용가능</Text></Pressable><Pressable style={[styles.chip, tab === 'DRAFT' && styles.chipActive]} onPress={() => setTab('DRAFT')}><Text style={[styles.chipText, tab === 'DRAFT' && styles.chipTextActive]}>작성중</Text></Pressable><Pressable style={[styles.chip, tab === 'USED' && styles.chipActive]} onPress={() => setTab('USED')}><Text style={[styles.chipText, tab === 'USED' && styles.chipTextActive]}>다씀</Text></Pressable><Pressable style={[styles.chip, tab === 'ALL' && styles.chipActive]} onPress={() => setTab('ALL')}><Text style={[styles.chipText, tab === 'ALL' && styles.chipTextActive]}>전체</Text></Pressable></View><View style={styles.sortRow}><Pressable style={[styles.sortButton, sortMode === 'latest' && styles.sortButtonActive]} onPress={() => setSortMode('latest')}><Text style={[styles.sortText, sortMode === 'latest' && styles.sortTextActive]}>최신순</Text></Pressable><Pressable style={[styles.sortButton, sortMode === 'expiring' && styles.sortButtonActive]} onPress={() => setSortMode('expiring')}><Text style={[styles.sortText, sortMode === 'expiring' && styles.sortTextActive]}>임박순</Text></Pressable></View></View>}
         renderItem={({ item }) => <GifticonCard item={item} onPress={() => router.push(`/${item.id}`)} />}
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         refreshing={query.isRefetching}

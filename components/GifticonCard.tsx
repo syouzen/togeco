@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatGifticonAmount } from '@/lib/domain';
+import { claimState, formatGifticonAmount, gifticonStatusLabel } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { getGifticonImageUrl } from '@/lib/gifticons';
 import { pb } from '@/lib/pb';
@@ -15,12 +15,14 @@ export function GifticonCard({ item, onPress }: Props) {
   const { colors } = useTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const used = item.status === 'USED';
+  const draft = item.status === 'DRAFT';
   const expiry = expiryInfo(item.expired_at);
   const expiryLabel = formatExpiryDday(expiry);
   const expired = expiry.state === 'expired';
   const currentUserId = pb.authStore.record?.id;
-  const claimedByMe = Boolean(item.claimed_by && item.claimed_by === currentUserId);
-  const claimedByOther = Boolean(item.claimed_by && item.claimed_by !== currentUserId);
+  const claim = claimState({ claimedBy: item.claimed_by, claimExpiresAt: item.claim_expires_at, currentUserId });
+  const claimedByMe = claim.byMe;
+  const claimedByOther = claim.byOther;
   return (
     <Pressable style={({ pressed }) => [styles.card, expired && styles.expiredCard, pressed && styles.pressed]} onPress={onPress}>
       <Image source={{ uri: getGifticonImageUrl(item) }} style={styles.thumbnail} />
@@ -28,10 +30,10 @@ export function GifticonCard({ item, onPress }: Props) {
         <View style={styles.header}>
           <Text style={styles.name} numberOfLines={1}>{item.name?.trim() || '이름 없는 기프티콘'}</Text>
           {expiryLabel ? <View style={[styles.badge, styles.expiryBadge, expiry.state === 'soon' && styles.soonBadge, expired && styles.expiredBadge]}><Text style={[styles.badgeText, styles.expiryText, expiry.state === 'soon' && styles.soonText, expired && styles.expiredText]}>{expiryLabel}</Text></View> : null}
-          <View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View>
+          <View style={[styles.badge, used ? styles.usedBadge : draft ? styles.draftBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : draft ? styles.draftText : styles.availableText]}>{gifticonStatusLabel(item.status)}</Text></View>
         </View>
         <Text style={styles.amount}>{formatGifticonAmount(item.remaining_amount, item.total_amount)}</Text>
-        {item.claimed_by ? <Text style={[styles.claimText, claimedByMe && styles.claimMine, claimedByOther && styles.claimOther]}>{claimedByMe ? '내 찜' : `${displayUser(item.expand?.claimed_by)} 사용 예정`}</Text> : null}
+        {claim.active ? <Text style={[styles.claimText, claimedByMe && styles.claimMine, claimedByOther && styles.claimOther]}>{claimedByMe ? '내 찜' : `${displayUser(item.expand?.claimed_by)} 사용 예정`}</Text> : null}
         {item.expired_at ? <Text style={[styles.meta, expired && styles.expiredMeta]}>유효기간 {item.expired_at.slice(0, 10)}</Text> : null}
         {item.memo ? <Text style={styles.memo} numberOfLines={1}>{item.memo}</Text> : null}
       </View>
@@ -57,12 +59,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   availableBadge: { backgroundColor: colors.successSoft },
   usedBadge: { backgroundColor: colors.dangerSoft },
+  draftBadge: { backgroundColor: colors.warningSoft },
   expiryBadge: { backgroundColor: colors.primarySoft },
   soonBadge: { backgroundColor: colors.warningSoft },
   expiredBadge: { backgroundColor: colors.surfaceMuted },
   badgeText: { fontSize: 12, fontWeight: '900' },
   availableText: { color: colors.successText },
   usedText: { color: colors.dangerText },
+  draftText: { color: colors.warningText },
   expiryText: { color: colors.primarySoftText },
   soonText: { color: colors.warningText },
   expiredText: { color: colors.textMuted },
