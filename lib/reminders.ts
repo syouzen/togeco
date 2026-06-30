@@ -6,7 +6,6 @@ import type { Gifticon, Reminder } from './types';
 const COLLECTION = 'reminders';
 const DEFAULT_REMINDER_HOUR = 9;
 export const DEFAULT_EXPIRY_REMINDER_OFFSETS = [30, 7, 3, 1] as const;
-export const CUSTOM_REMINDER_OFFSET = 0;
 
 function currentUserId() {
   const user = pb.authStore.record?.id;
@@ -21,18 +20,6 @@ function escapeFilterValue(value: string) {
 export async function ensureNotifPermission() {
   const { status } = await Notifications.requestPermissionsAsync();
   return status === 'granted';
-}
-
-export function dateOnly(value: string | Date) {
-  const date = typeof value === 'string' ? new Date(value) : value;
-  return date.toISOString().slice(0, 10);
-}
-
-export function reminderDateFromDateOnly(value: string) {
-  const parts = value.split('-').map(Number);
-  const [year, month, day] = parts;
-  if (!year || !month || !day) throw new Error('날짜 형식이 올바르지 않습니다.');
-  return new Date(year, month - 1, day, DEFAULT_REMINDER_HOUR, 0, 0, 0);
 }
 
 export function beforeExpiry(expiredAt: string, days: number) {
@@ -73,18 +60,13 @@ export async function myReminders(gifticonId: string): Promise<Reminder[]> {
   });
 }
 
-export async function myReminder(gifticonId: string): Promise<Reminder | null> {
-  const reminders = await myReminders(gifticonId);
-  return reminders[0] ?? null;
-}
-
 async function findReminder(gifticonId: string, user: string, offsetDays: number): Promise<Reminder | null> {
   return pb.collection(COLLECTION)
     .getFirstListItem<Reminder>(reminderFilter(gifticonId, user, offsetDays))
     .catch(() => null);
 }
 
-export async function setReminder(gifticonId: string, name: string, remindAt: Date, offsetDays = CUSTOM_REMINDER_OFFSET): Promise<Reminder> {
+export async function setReminder(gifticonId: string, name: string, remindAt: Date, offsetDays: number): Promise<Reminder> {
   await ensureAuth();
   if (isPastReminderDate(remindAt)) throw new Error('미래 날짜만 설정할 수 있습니다.');
   if (!(await ensureNotifPermission())) throw new Error('알림 권한이 필요해요.');
