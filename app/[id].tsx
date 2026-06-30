@@ -151,6 +151,7 @@ export default function DetailScreen() {
           <Text style={styles.reminderHelp}>알림은 유효기간 기준 30/7/3/1일 전만 지원합니다. 이미 지난 날짜는 자동으로 제외됩니다.</Text>
         </View>
         <View style={styles.actions}>
+          <Pressable style={[styles.action, styles.secondary]} onPress={() => router.push(`/edit/${id}`)}><Text style={styles.secondaryText}>편집</Text></Pressable>
           {draft ? <Pressable style={[styles.action, styles.claim]} disabled={publishMutation.isPending} onPress={() => publishMutation.mutate()}><Text style={styles.claimButtonText}>사용 가능으로 전환</Text></Pressable> : null}
           {claimedByMe ? <Pressable style={[styles.action, styles.secondary]} disabled={unclaimMutation.isPending} onPress={() => unclaimMutation.mutate()}><Text style={styles.secondaryText}>찜 해제</Text></Pressable> : !claim.active && !draft ? <Pressable style={[styles.action, styles.claim]} disabled={claimMutation.isPending} onPress={() => claimMutation.mutate()}><Text style={styles.claimButtonText}>찜하기</Text></Pressable> : null}
           <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>바코드 크게</Text></Pressable>

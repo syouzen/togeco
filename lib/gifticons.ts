@@ -1,8 +1,8 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 
-import { claimExpiresAt, nextStatusAfterSpend, revertLedgerEntry, usageLedgerEntry } from './domain';
+import { claimExpiresAt, editGifticonAmounts, nextStatusAfterSpend, revertLedgerEntry, usageLedgerEntry } from './domain';
 import { ensureAuth, pb } from './pb';
-import type { Gifticon, GifticonCreateInput, Usage } from './types';
+import type { Gifticon, GifticonCreateInput, GifticonUpdateInput, Usage } from './types';
 
 const COLLECTION = 'gifticons';
 const USAGES_COLLECTION = 'usages';
@@ -103,6 +103,40 @@ export async function createGifticon(input: GifticonCreateInput): Promise<Giftic
   }
   form.append('image', { uri: manipulated.uri, name: 'gifticon.jpg', type: 'image/jpeg' } as any);
   return pb.collection(COLLECTION).create<Gifticon>(form);
+}
+
+export async function updateGifticon(input: GifticonUpdateInput): Promise<Gifticon> {
+  await ensureAuth();
+  const barcode = input.barcode?.trim() ?? '';
+  if (barcode) {
+    const duplicate = await findGifticonByBarcode(barcode);
+    if (duplicate && duplicate.id !== input.id) throw new Error('이미 등록된 바코드입니다.');
+  }
+  const amountFields = editGifticonAmounts({
+    isExchange: Boolean(input.isExchange),
+    nextTotalAmount: input.totalAmount,
+    currentTotalAmount: input.currentTotalAmount,
+    currentRemainingAmount: input.currentRemainingAmount,
+  });
+  const payload = {
+    name: input.name?.trim() ?? '',
+    memo: input.memo?.trim() ?? '',
+    expired_at: input.expiredAt || null,
+    barcode: barcode || null,
+    ...amountFields,
+  };
+  let updated = await pb.collection(COLLECTION).update<Gifticon>(input.id, payload);
+  if (input.imageUri) {
+    const manipulated = await ImageManipulator.manipulateAsync(
+      input.imageUri,
+      [{ resize: { width: 1080 } }],
+      { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG },
+    );
+    const form = new FormData();
+    form.append('image', { uri: manipulated.uri, name: 'gifticon.jpg', type: 'image/jpeg' } as any);
+    updated = await pb.collection(COLLECTION).update<Gifticon>(input.id, form);
+  }
+  return updated;
 }
 
 export async function spendGifticon(id: string, remainingAmount: number, amount: number): Promise<Gifticon> {

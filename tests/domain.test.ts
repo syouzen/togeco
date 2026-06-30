@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canUseGifticon, claimExpiresAt, claimState, filterGifticons, formatWon, gifticonStatusLabel, quickSpendPresets, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
+import { canUseGifticon, claimExpiresAt, claimState, editGifticonAmounts, filterGifticons, formatWon, gifticonStatusLabel, quickSpendPresets, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
 
 describe('gifticon amount domain', () => {
   it('parses positive won amounts and ignores commas', () => {
@@ -40,6 +40,12 @@ describe('gifticon amount domain', () => {
     expect(quickSpendPresets(4200)).toEqual([1000, 3000, 4200]);
     expect(quickSpendPresets(7000)).toEqual([1000, 3000, 5000, 7000]);
     expect(quickSpendPresets(1000)).toEqual([1000]);
+  });
+
+  it('derives edit amount fields when switching coupon types', () => {
+    expect(editGifticonAmounts({ isExchange: true, nextTotalAmount: null, currentTotalAmount: 10000, currentRemainingAmount: 4000 })).toEqual({ total_amount: null, remaining_amount: null });
+    expect(editGifticonAmounts({ isExchange: false, nextTotalAmount: 12000, currentTotalAmount: 10000, currentRemainingAmount: 4000 })).toEqual({ total_amount: 12000, remaining_amount: 12000 });
+    expect(editGifticonAmounts({ isExchange: false, nextTotalAmount: 10000, currentTotalAmount: 10000, currentRemainingAmount: 4000 })).toEqual({ total_amount: 10000, remaining_amount: 4000 });
   });
 
   it('validates login input before requesting PocketBase auth', () => {
