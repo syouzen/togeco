@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 
 import { AmountModal } from '@/components/AmountModal';
 import { formatGifticonAmount } from '@/lib/domain';
+import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { deleteGifticon, getGifticon, getGifticonImageUrl, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
 import { isAuthenticated } from '@/lib/pb';
 
@@ -31,15 +32,17 @@ export default function DetailScreen() {
   if (!query.data) return <View style={styles.center}><Text style={styles.title}>기프티콘을 찾지 못했습니다.</Text></View>;
   const item = query.data;
   const used = item.status === 'USED';
+  const expiry = expiryInfo(item.expired_at);
+  const expiryLabel = formatExpiryDday(expiry);
   const canSpend = hasAmount && !used;
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Image source={{ uri: getGifticonImageUrl(item) }} style={styles.image} />
         <View style={styles.panel}>
-          <View style={styles.titleRow}><Text style={styles.title}>{item.name?.trim() || '이름 없는 기프티콘'}</Text><View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View></View>
+          <View style={styles.titleRow}><Text style={styles.title}>{item.name?.trim() || '이름 없는 기프티콘'}</Text>{expiryLabel ? <View style={[styles.badge, styles.expiryBadge, expiry.state === 'soon' && styles.soonBadge, expiry.state === 'expired' && styles.expiredBadge]}><Text style={[styles.badgeText, styles.expiryText, expiry.state === 'soon' && styles.soonText, expiry.state === 'expired' && styles.expiredText]}>{expiryLabel}</Text></View> : null}<View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View></View>
           <Text style={styles.amount}>{formatGifticonAmount(item.remaining_amount, item.total_amount)}</Text>
-          {item.expiry ? <Text style={styles.meta}>유효기간 {item.expiry.slice(0, 10)}</Text> : null}
+          {item.expired_at ? <Text style={[styles.meta, expiry.state === 'expired' && styles.expiredMeta]}>유효기간 {item.expired_at.slice(0, 10)}</Text> : null}
           {item.barcode ? <Text style={styles.meta}>바코드 {item.barcode}</Text> : null}
           {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
         </View>
@@ -68,9 +71,16 @@ const styles = StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   availableBadge: { backgroundColor: '#dcfce7' },
   usedBadge: { backgroundColor: '#fee2e2' },
+  expiryBadge: { backgroundColor: '#eef2ff' },
+  soonBadge: { backgroundColor: '#fef3c7' },
+  expiredBadge: { backgroundColor: '#e5e7eb' },
   badgeText: { fontSize: 12, fontWeight: '900' },
   availableText: { color: '#15803d' },
   usedText: { color: '#b91c1c' },
+  expiryText: { color: '#4338ca' },
+  soonText: { color: '#b45309' },
+  expiredText: { color: '#4b5563' },
+  expiredMeta: { color: '#6b7280' },
   actions: { gap: 12 },
   action: { borderRadius: 18, alignItems: 'center', paddingVertical: 16 },
   primary: { backgroundColor: '#111827' },
