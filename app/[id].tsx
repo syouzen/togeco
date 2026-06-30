@@ -5,10 +5,12 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 
 import { AmountModal } from '@/components/AmountModal';
 import { BarcodeZoom } from '@/components/BarcodeZoom';
+import { RetryNotice } from '@/components/RetryNotice';
 import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
 import { canUseGifticon, claimState, formatGifticonAmount, formatWon, gifticonStatusLabel } from '@/lib/domain';
+import { appErrorMessage } from '@/lib/errors';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
-import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, publishDraftGifticon, revertUsage, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
+import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, publishDraftGifticon, revertUsage, retryPendingUsageRecords, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
 import { isAuthenticated, pb } from '@/lib/pb';
 import { beforeExpiry, cancelReminder, DEFAULT_EXPIRY_REMINDER_OFFSETS, isPastReminderDate, myReminders, setReminder } from '@/lib/reminders';
 import { useTheme, type ThemeColors } from '@/lib/theme';
@@ -54,9 +56,10 @@ export default function DetailScreen() {
       router.replace('/login');
       return;
     }
+    retryPendingUsageRecords().then((count) => { if (count > 0) queryClient.invalidateQueries({ queryKey: ['usages'] }); }).catch(() => undefined);
     refetch();
     reminderQuery.refetch();
-  }, [refetch, reminderQuery]));
+  }, [queryClient, refetch, reminderQuery]));
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['gifticons'] });
     await queryClient.invalidateQueries({ queryKey: ['gifticons', id] });
@@ -64,22 +67,23 @@ export default function DetailScreen() {
     await queryClient.invalidateQueries({ queryKey: ['reminders', id] });
   };
   const hasAmount = query.data?.remaining_amount != null && query.data?.total_amount != null;
-  const spendMutation = useMutation({ mutationFn: (amount: number) => spendGifticon(id, query.data?.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendOpen(false); await invalidate(); }, onError: () => Alert.alert('차감 실패', '잔액 차감에 실패했습니다. 다시 시도해주세요.') });
-  const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount ? query.data?.remaining_amount ?? 0 : null), onSuccess: invalidate, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });
-  const publishMutation = useMutation({ mutationFn: () => publishDraftGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('게시 실패', '작성 중 기프티콘을 사용 가능 상태로 바꾸지 못했습니다.') });
-  const claimMutation = useMutation({ mutationFn: () => claimGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('찜 실패', '찜 상태를 저장하지 못했습니다.') });
-  const unclaimMutation = useMutation({ mutationFn: () => unclaimGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('찜 해제 실패', '찜을 해제하지 못했습니다.') });
+  const spendMutation = useMutation({ mutationFn: (amount: number) => spendGifticon(id, query.data?.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendOpen(false); await invalidate(); }, onError: (error) => Alert.alert('차감 확인 필요', appErrorMessage(error, '잔액 차감 또는 사용 내역 기록에 실패했습니다. 새로고침 후 다시 시도해주세요.')) });
+  const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount ? query.data?.remaining_amount ?? 0 : null), onSuccess: invalidate, onError: (error) => Alert.alert('처리 실패', appErrorMessage(error, '다 씀 처리에 실패했습니다. 다시 시도해주세요.')) });
+  const publishMutation = useMutation({ mutationFn: () => publishDraftGifticon(id), onSuccess: invalidate, onError: (error) => Alert.alert('게시 실패', appErrorMessage(error, '작성 중 기프티콘을 사용 가능 상태로 바꾸지 못했습니다.')) });
+  const claimMutation = useMutation({ mutationFn: () => claimGifticon(id), onSuccess: invalidate, onError: (error) => Alert.alert('찜 실패', appErrorMessage(error, '찜 상태를 저장하지 못했습니다.')) });
+  const unclaimMutation = useMutation({ mutationFn: () => unclaimGifticon(id), onSuccess: invalidate, onError: (error) => Alert.alert('찜 해제 실패', appErrorMessage(error, '찜을 해제하지 못했습니다.')) });
   const revertMutation = useMutation({ mutationFn: (usageId: string) => {
     const usage = usageQuery.data?.find((itemUsage) => itemUsage.id === usageId);
     if (!usage) throw new Error('사용 내역을 찾지 못했습니다.');
     return revertUsage(id, usage, query.data?.remaining_amount ?? null);
   }, onSuccess: invalidate, onError: (error) => Alert.alert('되돌리기 실패', error instanceof Error ? error.message : '사용 내역을 되돌리지 못했습니다.') });
   const reminderMutation = useMutation({ mutationFn: ({ remindAt, offsetDays }: { remindAt: Date; offsetDays: number }) => setReminder(id, itemName, remindAt, offsetDays), onSuccess: async () => { await invalidate(); }, onError: (error) => Alert.alert('알림 설정 실패', error instanceof Error ? error.message : '리마인더를 저장하지 못했습니다.') });
-  const cancelReminderMutation = useMutation({ mutationFn: (reminderId: string) => cancelReminder(reminderId), onSuccess: invalidate, onError: () => Alert.alert('알림 끄기 실패', '리마인더를 삭제하지 못했습니다.') });
-  const deleteMutation = useMutation({ mutationFn: () => deleteGifticon(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: () => Alert.alert('삭제 실패', '삭제에 실패했습니다.') });
+  const cancelReminderMutation = useMutation({ mutationFn: (reminderId: string) => cancelReminder(reminderId), onSuccess: invalidate, onError: (error) => Alert.alert('알림 끄기 실패', appErrorMessage(error, '리마인더를 삭제하지 못했습니다.')) });
+  const deleteMutation = useMutation({ mutationFn: () => deleteGifticon(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: (error) => Alert.alert('삭제 실패', appErrorMessage(error, '삭제에 실패했습니다.')) });
   const confirmDelete = () => Alert.alert('삭제할까요?', '삭제한 기프티콘은 되돌릴 수 없습니다.', [{ text: '취소', style: 'cancel' }, { text: '삭제', style: 'destructive', onPress: () => deleteMutation.mutate() }]);
   if (query.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
-  if (!query.data) return <View style={styles.center}><Text style={styles.title}>기프티콘을 찾지 못했습니다.</Text></View>;
+  if (query.error) return <View style={styles.center}><RetryNotice message={appErrorMessage(query.error, '상세 정보를 불러오지 못했습니다.')} onRetry={() => query.refetch()} isRetrying={query.isRefetching} /></View>;
+  if (!query.data) return <View style={styles.center}><RetryNotice title="기프티콘을 찾지 못했습니다" message="삭제되었거나 접근 권한이 없을 수 있습니다." onRetry={() => query.refetch()} isRetrying={query.isRefetching} /></View>;
   const item = query.data;
   const used = item.status === 'USED';
   const draft = item.status === 'DRAFT';

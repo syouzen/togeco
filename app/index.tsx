@@ -4,10 +4,12 @@ import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { AmountModal } from '@/components/AmountModal';
+import { RetryNotice } from '@/components/RetryNotice';
 import { GifticonCard } from '@/components/GifticonCard';
 import { claimState, filterGifticons } from '@/lib/domain';
+import { appErrorMessage } from '@/lib/errors';
 import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
-import { type GifticonSortMode, type GifticonStatusTab, claimGifticon, listGifticons, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
+import { type GifticonSortMode, type GifticonStatusTab, claimGifticon, listGifticons, markGifticonUsed, retryPendingUsageRecords, spendGifticon } from '@/lib/gifticons';
 import { isAuthenticated, logout, pb } from '@/lib/pb';
 import { useTheme, type ThemeColors } from '@/lib/theme';
 import type { Gifticon } from '@/lib/types';
@@ -37,8 +39,9 @@ export default function IndexScreen() {
       router.replace('/login');
       return;
     }
+    retryPendingUsageRecords().then((count) => { if (count > 0) queryClient.invalidateQueries({ queryKey: ['usages'] }); }).catch(() => undefined);
     refetch();
-  }, [refetch]));
+  }, [queryClient, refetch]));
 
   const signOut = () => {
     logout();
@@ -48,9 +51,9 @@ export default function IndexScreen() {
   const invalidateGifticons = async () => {
     await queryClient.invalidateQueries({ queryKey: ['gifticons'] });
   };
-  const claimMutation = useMutation({ mutationFn: (item: Gifticon) => claimGifticon(item.id), onSuccess: async () => { await invalidateGifticons(); Alert.alert('찜 완료', '30분 동안 사용 예정으로 표시됩니다.'); }, onError: () => Alert.alert('찜 실패', '찜 상태를 저장하지 못했습니다.') });
-  const spendMutation = useMutation({ mutationFn: ({ item, amount }: { item: Gifticon; amount: number }) => spendGifticon(item.id, item.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendTarget(null); await invalidateGifticons(); Alert.alert('차감 완료', '사용 내역에 기록했습니다.'); }, onError: () => Alert.alert('차감 실패', '잔액 차감에 실패했습니다.') });
-  const usedMutation = useMutation({ mutationFn: (item: Gifticon) => markGifticonUsed(item.id, item.remaining_amount ?? null), onSuccess: async () => { await invalidateGifticons(); Alert.alert('처리 완료', '다 씀으로 표시했습니다.'); }, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });
+  const claimMutation = useMutation({ mutationFn: (item: Gifticon) => claimGifticon(item.id), onSuccess: async () => { await invalidateGifticons(); Alert.alert('찜 완료', '30분 동안 사용 예정으로 표시됩니다.'); }, onError: (error) => Alert.alert('찜 실패', appErrorMessage(error, '찜 상태를 저장하지 못했습니다. 다시 시도해주세요.')) });
+  const spendMutation = useMutation({ mutationFn: ({ item, amount }: { item: Gifticon; amount: number }) => spendGifticon(item.id, item.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendTarget(null); await invalidateGifticons(); Alert.alert('차감 완료', '사용 내역에 기록했습니다.'); }, onError: (error) => Alert.alert('차감 확인 필요', appErrorMessage(error, '잔액 차감 또는 사용 내역 기록에 실패했습니다. 목록을 새로고침한 뒤 다시 시도해주세요.')) });
+  const usedMutation = useMutation({ mutationFn: (item: Gifticon) => markGifticonUsed(item.id, item.remaining_amount ?? null), onSuccess: async () => { await invalidateGifticons(); Alert.alert('처리 완료', '다 씀으로 표시했습니다.'); }, onError: (error) => Alert.alert('처리 실패', appErrorMessage(error, '다 씀 처리에 실패했습니다. 다시 시도해주세요.')) });
 
   const confirmClaimedByOther = (item: Gifticon, action: () => void) => {
     const claim = claimState({ claimedBy: item.claimed_by, claimExpiresAt: item.claim_expires_at, currentUserId: pb.authStore.record?.id });
@@ -88,9 +91,9 @@ export default function IndexScreen() {
         ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
         refreshing={query.isRefetching}
         onRefresh={query.refetch}
-        ListEmptyComponent={query.isLoading ? <ActivityIndicator size="large" color={colors.primary} /> : <View style={styles.emptyBox}><Text style={styles.emptyTitle}>{emptyTitle}</Text><Text style={styles.emptyText}>{hasActiveFilters ? '검색어나 필터를 초기화해보세요.' : '오른쪽 아래 + 버튼으로 첫 기프티콘을 올려보세요.'}</Text>{hasActiveFilters ? <Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>필터 초기화</Text></Pressable> : null}</View>}
+        ListEmptyComponent={query.isLoading ? <ActivityIndicator size="large" color={colors.primary} /> : query.error ? <RetryNotice message={appErrorMessage(query.error, '목록을 불러오지 못했습니다.')} onRetry={() => query.refetch()} isRetrying={query.isRefetching} /> : <View style={styles.emptyBox}><Text style={styles.emptyTitle}>{emptyTitle}</Text><Text style={styles.emptyText}>{hasActiveFilters ? '검색어나 필터를 초기화해보세요.' : '오른쪽 아래 + 버튼으로 첫 기프티콘을 올려보세요.'}</Text>{hasActiveFilters ? <Pressable style={styles.resetButton} onPress={resetFilters}><Text style={styles.resetText}>필터 초기화</Text></Pressable> : null}</View>}
       />
-      {query.error ? <Text style={styles.error}>목록을 불러오지 못했습니다. 당겨서 다시 시도하세요.</Text> : null}
+      {query.error && visibleData.length > 0 ? <View style={styles.error}><RetryNotice message={appErrorMessage(query.error, '목록을 새로고침하지 못했습니다.')} onRetry={() => query.refetch()} isRetrying={query.isRefetching} /></View> : null}
       <Pressable style={styles.fab} onPress={() => router.push('/add')}><Text style={styles.fabText}>+</Text></Pressable>
       {spendTarget?.remaining_amount != null ? <AmountModal visible={Boolean(spendTarget)} remainingAmount={spendTarget.remaining_amount} isSaving={spendMutation.isPending} onClose={() => setSpendTarget(null)} onSubmit={(amount) => spendMutation.mutate({ item: spendTarget, amount })} /> : null}
     </View>
@@ -127,7 +130,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   emptyBox: { alignItems: 'center', gap: 8 },
   emptyTitle: { fontSize: 20, fontWeight: '900', color: colors.text },
   emptyText: { color: colors.textSubtle, textAlign: 'center' },
-  error: { position: 'absolute', left: 18, right: 18, bottom: 92, padding: 12, borderRadius: 14, backgroundColor: colors.dangerSoft, color: colors.dangerText, fontWeight: '800' },
+  error: { position: 'absolute', left: 18, right: 18, bottom: 92 },
   fab: { position: 'absolute', right: 22, bottom: 28, width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary, shadowColor: colors.shadow, shadowOpacity: 0.25, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 4 },
   fabText: { color: colors.primaryText, fontSize: 36, lineHeight: 40, fontWeight: '600' },
 });

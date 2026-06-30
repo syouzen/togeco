@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { validateExpiryInput, validateGifticonAmount } from '@/lib/domain';
+import { appErrorMessage } from '@/lib/errors';
 import { createGifticon } from '@/lib/gifticons';
 import { isAuthenticated } from '@/lib/pb';
 import { setDefaultExpiryReminders } from '@/lib/reminders';
@@ -33,7 +34,7 @@ export default function AddScreen() {
       await queryClient.invalidateQueries({ queryKey: ['gifticons'] });
       router.back();
     },
-    onError: (error: Error) => Alert.alert(error.message.includes('이미 등록된 바코드') ? '이미 등록됨' : '저장 실패', error.message.includes('이미 등록된 바코드') ? '같은 바코드의 기프티콘이 이미 등록되어 있습니다.' : '기프티콘을 저장하지 못했습니다. 네트워크와 PocketBase 설정을 확인해주세요.'),
+    onError: (error: Error) => Alert.alert(error.message.includes('이미 등록된 바코드') ? '이미 등록됨' : '저장 실패', error.message.includes('이미 등록된 바코드') ? '같은 바코드의 기프티콘이 이미 등록되어 있습니다.' : appErrorMessage(error, '기프티콘을 저장하지 못했습니다. 이미지 용량, 네트워크, PocketBase 설정을 확인한 뒤 다시 시도해주세요.')),
   });
   const scanMutation = useMutation({
     mutationFn: scanGifticon,
@@ -45,7 +46,7 @@ export default function AddScreen() {
       setIsExchange(result.isExchange);
       Alert.alert('스캔 완료', '자동 인식 값을 채웠습니다. 저장 전 꼭 확인해주세요.');
     },
-    onError: () => Alert.alert('스캔 실패', '자동 인식에 실패했습니다. 다시 시도하거나 직접 입력해주세요.'),
+    onError: (error) => Alert.alert('스캔 실패', appErrorMessage(error, '자동 인식에 실패했습니다. 다시 시도하거나 직접 입력해주세요.')),
   });
 
   if (!isAuthenticated()) {
@@ -69,6 +70,7 @@ export default function AddScreen() {
   };
 
   const save = () => {
+    if (mutation.isPending || scanMutation.isPending) return;
     if (!imageUri) { Alert.alert('이미지 필요', '기프티콘 이미지를 선택해주세요.'); return; }
     const parsed = validateGifticonAmount(amount, isExchange);
     if (!parsed.ok) { Alert.alert('금액 확인', parsed.message); return; }
@@ -78,6 +80,7 @@ export default function AddScreen() {
   };
 
   const saveDraft = () => {
+    if (mutation.isPending || scanMutation.isPending) return;
     if (!imageUri) { Alert.alert('이미지 필요', '임시 저장할 이미지를 선택해주세요.'); return; }
     const parsed = isExchange || amount.trim().length === 0 ? { ok: true as const, amount: null } : validateGifticonAmount(amount, false);
     if (!parsed.ok) { Alert.alert('금액 확인', parsed.message); return; }

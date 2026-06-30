@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 import { claimExpiresAt, editGifticonAmounts, nextStatusAfterSpend, revertLedgerEntry, usageLedgerEntry } from './domain';
@@ -6,6 +7,8 @@ import type { Gifticon, GifticonCreateInput, GifticonUpdateInput, Usage } from '
 
 const COLLECTION = 'gifticons';
 const USAGES_COLLECTION = 'usages';
+const USAGE_RETRY_QUEUE_KEY = 'togeco_pending_usage_records';
+type PendingUsageRecord = { gifticonId: string; payload: Record<string, unknown> };
 export type GifticonSortMode = 'latest' | 'expiring';
 export type GifticonStatusTab = 'DRAFT' | 'AVAILABLE' | 'USED' | 'ALL';
 
@@ -158,13 +161,53 @@ export async function markGifticonUsed(id: string, remainingAmount: number | nul
   return updated;
 }
 
+async function pendingUsageRecords(): Promise<PendingUsageRecord[]> {
+  const raw = await AsyncStorage.getItem(USAGE_RETRY_QUEUE_KEY).catch(() => null);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function savePendingUsageRecords(records: PendingUsageRecord[]) {
+  await AsyncStorage.setItem(USAGE_RETRY_QUEUE_KEY, JSON.stringify(records)).catch(() => undefined);
+}
+
+async function enqueueUsageRecord(record: PendingUsageRecord) {
+  const records = await pendingUsageRecords();
+  records.push(record);
+  await savePendingUsageRecords(records.slice(-20));
+}
+
+export async function retryPendingUsageRecords(): Promise<number> {
+  await ensureAuth();
+  const records = await pendingUsageRecords();
+  if (records.length === 0) return 0;
+  const remaining: PendingUsageRecord[] = [];
+  let recovered = 0;
+  for (const record of records) {
+    try {
+      await pb.collection(USAGES_COLLECTION).create(record.payload);
+      recovered += 1;
+    } catch {
+      remaining.push(record);
+    }
+  }
+  await savePendingUsageRecords(remaining);
+  return recovered;
+}
+
 async function recordUsage(gifticonId: string, ledger: ReturnType<typeof usageLedgerEntry> | ReturnType<typeof revertLedgerEntry>, extra: Partial<Usage> = {}): Promise<void> {
   const user = pb.authStore.record?.id;
   if (!user) return;
+  const payload = { gifticon: gifticonId, user, ...ledger, ...extra };
   try {
-    await pb.collection(USAGES_COLLECTION).create({ gifticon: gifticonId, user, ...ledger, ...extra });
+    await pb.collection(USAGES_COLLECTION).create(payload);
   } catch {
-    // Usage history is best-effort: the gifticon update is the source of truth.
+    await enqueueUsageRecord({ gifticonId, payload });
   }
 }
 
