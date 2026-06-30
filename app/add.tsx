@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
 import { validateExpiryInput, validateGifticonAmount } from '@/lib/domain';
@@ -9,8 +9,11 @@ import { createGifticon } from '@/lib/gifticons';
 import { isAuthenticated } from '@/lib/pb';
 import { setDefaultExpiryReminders } from '@/lib/reminders';
 import { scanGifticon } from '@/lib/scan';
+import { useTheme, type ThemeColors } from '@/lib/theme';
 
 export default function AddScreen() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [name, setName] = useState('');
@@ -84,36 +87,36 @@ export default function AddScreen() {
           </Pressable>
           <Text style={styles.scanHint}>자동 저장 안 함 · 확인 후 저장</Text>
         </View>
-        <View style={styles.field}><Text style={styles.label}>이름</Text><TextInput value={name} onChangeText={setName} placeholder="예: 스타벅스 금액권" style={styles.input} /></View>
-        <View style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.label}>교환권</Text><Text style={styles.help}>금액이 없는 쿠폰이면 켜세요.</Text></View><Switch value={isExchange} onValueChange={(value) => { setIsExchange(value); if (value) setAmount(''); }} /></View>
-        <View style={styles.field}><Text style={styles.label}>금액 {isExchange ? '' : '*'}</Text><TextInput value={amount} onChangeText={setAmount} placeholder={isExchange ? '교환권은 금액 없음' : '예: 30000'} keyboardType="number-pad" style={[styles.input, isExchange && styles.disabledInput]} editable={!isExchange} /></View>
-        <View style={styles.field}><Text style={styles.label}>유효기간</Text><TextInput value={expiry} onChangeText={setExpiry} placeholder="YYYY-MM-DD" keyboardType="numbers-and-punctuation" style={styles.input} /></View>
-        <View style={styles.field}><Text style={styles.label}>바코드</Text><TextInput value={barcode} onChangeText={setBarcode} placeholder="스캔 또는 직접 입력" autoCapitalize="none" style={styles.input} /></View>
-        <View style={styles.field}><Text style={styles.label}>메모</Text><TextInput value={memo} onChangeText={setMemo} placeholder="선택 입력" style={[styles.input, styles.memo]} multiline /></View>
+        <View style={styles.field}><Text style={styles.label}>이름</Text><TextInput value={name} onChangeText={setName} placeholder="예: 스타벅스 금액권" placeholderTextColor={colors.textSubtle} style={styles.input} /></View>
+        <View style={styles.switchRow}><View style={{ flex: 1 }}><Text style={styles.label}>교환권</Text><Text style={styles.help}>금액이 없는 쿠폰이면 켜세요.</Text></View><Switch value={isExchange} onValueChange={(value) => { setIsExchange(value); if (value) setAmount(''); }} thumbColor={isExchange ? colors.success : colors.textSubtle} trackColor={{ false: colors.surfaceMuted, true: colors.successSoft }} /></View>
+        <View style={styles.field}><Text style={styles.label}>금액 {isExchange ? '' : '*'}</Text><TextInput value={amount} onChangeText={setAmount} placeholder={isExchange ? '교환권은 금액 없음' : '예: 30000'} placeholderTextColor={colors.textSubtle} keyboardType="number-pad" style={[styles.input, isExchange && styles.disabledInput]} editable={!isExchange} /></View>
+        <View style={styles.field}><Text style={styles.label}>유효기간</Text><TextInput value={expiry} onChangeText={setExpiry} placeholder="YYYY-MM-DD" placeholderTextColor={colors.textSubtle} keyboardType="numbers-and-punctuation" style={styles.input} /></View>
+        <View style={styles.field}><Text style={styles.label}>바코드</Text><TextInput value={barcode} onChangeText={setBarcode} placeholder="스캔 또는 직접 입력" placeholderTextColor={colors.textSubtle} autoCapitalize="none" style={styles.input} /></View>
+        <View style={styles.field}><Text style={styles.label}>메모</Text><TextInput value={memo} onChangeText={setMemo} placeholder="선택 입력" placeholderTextColor={colors.textSubtle} style={[styles.input, styles.memo]} multiline /></View>
         <Pressable style={[styles.save, (mutation.isPending || scanMutation.isPending) && styles.disabled]} onPress={save} disabled={mutation.isPending || scanMutation.isPending}><Text style={styles.saveText}>{mutation.isPending ? '저장 중...' : '저장'}</Text></Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 20, gap: 18 },
-  imagePicker: { height: 280, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: '#e5e7eb', borderWidth: 1, borderColor: '#d1d5db', borderStyle: 'dashed' },
+  imagePicker: { height: 280, borderRadius: 26, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.border, borderStyle: 'dashed' },
   preview: { width: '100%', height: '100%' },
-  imageText: { fontSize: 18, fontWeight: '900', color: '#374151' },
+  imageText: { fontSize: 18, fontWeight: '900', color: colors.textMuted },
   scanRow: { gap: 8 },
-  scanButton: { borderRadius: 18, alignItems: 'center', backgroundColor: '#eef2ff', paddingVertical: 15 },
-  scanText: { color: '#3730a3', fontSize: 16, fontWeight: '900' },
-  scanHint: { color: '#6b7280', textAlign: 'center', fontWeight: '700' },
+  scanButton: { borderRadius: 18, alignItems: 'center', backgroundColor: colors.primarySoft, paddingVertical: 15 },
+  scanText: { color: colors.primarySoftText, fontSize: 16, fontWeight: '900' },
+  scanHint: { color: colors.textSubtle, textAlign: 'center', fontWeight: '700' },
   field: { gap: 8 },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', padding: 14 },
-  label: { color: '#111827', fontWeight: '900' },
-  help: { color: '#6b7280', marginTop: 4 },
-  input: { borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
-  disabledInput: { backgroundColor: '#f3f4f6', color: '#9ca3af' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 18, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, padding: 14 },
+  label: { color: colors.text, fontWeight: '900' },
+  help: { color: colors.textSubtle, marginTop: 4 },
+  input: { borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.text, paddingHorizontal: 14, paddingVertical: 13, fontSize: 16 },
+  disabledInput: { backgroundColor: colors.surfaceMuted, color: colors.textSubtle },
   memo: { minHeight: 84, textAlignVertical: 'top' },
-  save: { marginTop: 8, borderRadius: 18, alignItems: 'center', backgroundColor: '#111827', paddingVertical: 16 },
+  save: { marginTop: 8, borderRadius: 18, alignItems: 'center', backgroundColor: colors.primary, paddingVertical: 16 },
   disabled: { opacity: 0.55 },
-  saveText: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  saveText: { color: colors.primaryText, fontSize: 17, fontWeight: '900' },
 });

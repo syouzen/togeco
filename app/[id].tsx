@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AmountModal } from '@/components/AmountModal';
@@ -11,6 +11,7 @@ import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
 import { isAuthenticated, pb } from '@/lib/pb';
 import { beforeExpiry, cancelReminder, DEFAULT_EXPIRY_REMINDER_OFFSETS, isPastReminderDate, myReminders, setReminder } from '@/lib/reminders';
+import { useTheme, type ThemeColors } from '@/lib/theme';
 import { displayUser } from '@/lib/users';
 
 function formatUsageTime(value: string) {
@@ -27,6 +28,8 @@ function formatReminderLabel(offsetDays: number) {
 
 export default function DetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const queryClient = useQueryClient();
   const [spendOpen, setSpendOpen] = useState(false);
   const [barcodeZoomOpen, setBarcodeZoomOpen] = useState(false);
@@ -58,7 +61,7 @@ export default function DetailScreen() {
   const cancelReminderMutation = useMutation({ mutationFn: (reminderId: string) => cancelReminder(reminderId), onSuccess: invalidate, onError: () => Alert.alert('알림 끄기 실패', '리마인더를 삭제하지 못했습니다.') });
   const deleteMutation = useMutation({ mutationFn: () => deleteGifticon(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: () => Alert.alert('삭제 실패', '삭제에 실패했습니다.') });
   const confirmDelete = () => Alert.alert('삭제할까요?', '삭제한 기프티콘은 되돌릴 수 없습니다.', [{ text: '취소', style: 'cancel' }, { text: '삭제', style: 'destructive', onPress: () => deleteMutation.mutate() }]);
-  if (query.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#111827" /></View>;
+  if (query.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color={colors.primary} /></View>;
   if (!query.data) return <View style={styles.center}><Text style={styles.title}>기프티콘을 찾지 못했습니다.</Text></View>;
   const item = query.data;
   const used = item.status === 'USED';
@@ -153,57 +156,57 @@ export default function DetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: colors.background },
   content: { padding: 18, gap: 18, paddingBottom: 40 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: 24 },
-  image: { width: '100%', height: 460, borderRadius: 26, backgroundColor: '#e5e7eb' },
-  panel: { borderRadius: 24, backgroundColor: '#fff', padding: 18, gap: 10 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background, padding: 24 },
+  image: { width: '100%', height: 460, borderRadius: 26, backgroundColor: colors.disabled },
+  panel: { borderRadius: 24, backgroundColor: colors.surface, padding: 18, gap: 10 },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  title: { flex: 1, fontSize: 24, fontWeight: '900', color: '#111827' },
-  amount: { fontSize: 20, fontWeight: '900', color: '#374151' },
-  sectionTitle: { fontSize: 18, fontWeight: '900', color: '#111827' },
-  meta: { color: '#4f46e5', fontWeight: '800' },
-  claimText: { color: '#6b7280', fontWeight: '900' },
-  claimMine: { color: '#15803d' },
-  claimOther: { color: '#b45309' },
-  reminderText: { color: '#111827', fontWeight: '900' },
-  reminderHelp: { color: '#6b7280', lineHeight: 20 },
-  reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10 },
-  checkIcon: { width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: '#dcfce7' },
-  checkIconText: { color: '#15803d', fontWeight: '900' },
-  smallAction: { borderRadius: 999, backgroundColor: '#eef2ff', paddingHorizontal: 12, paddingVertical: 8 },
-  smallDanger: { borderRadius: 999, backgroundColor: '#fee2e2', paddingHorizontal: 12, paddingVertical: 8 },
-  memo: { color: '#6b7280', lineHeight: 21 },
+  title: { flex: 1, fontSize: 24, fontWeight: '900', color: colors.text },
+  amount: { fontSize: 20, fontWeight: '900', color: colors.textMuted },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: colors.text },
+  meta: { color: colors.primarySoftText, fontWeight: '800' },
+  claimText: { color: colors.textSubtle, fontWeight: '900' },
+  claimMine: { color: colors.success },
+  claimOther: { color: colors.warningText },
+  reminderText: { color: colors.text, fontWeight: '900' },
+  reminderHelp: { color: colors.textSubtle, lineHeight: 20 },
+  reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.surfaceMuted, paddingTop: 10 },
+  checkIcon: { width: 24, height: 24, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.successSoft },
+  checkIconText: { color: colors.success, fontWeight: '900' },
+  smallAction: { borderRadius: 999, backgroundColor: colors.primarySoft, paddingHorizontal: 12, paddingVertical: 8 },
+  smallDanger: { borderRadius: 999, backgroundColor: colors.dangerSoft, paddingHorizontal: 12, paddingVertical: 8 },
+  memo: { color: colors.textSubtle, lineHeight: 21 },
   badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
-  availableBadge: { backgroundColor: '#dcfce7' },
-  usedBadge: { backgroundColor: '#fee2e2' },
-  expiryBadge: { backgroundColor: '#eef2ff' },
-  soonBadge: { backgroundColor: '#fef3c7' },
-  expiredBadge: { backgroundColor: '#e5e7eb' },
+  availableBadge: { backgroundColor: colors.successSoft },
+  usedBadge: { backgroundColor: colors.dangerSoft },
+  expiryBadge: { backgroundColor: colors.primarySoft },
+  soonBadge: { backgroundColor: colors.warningSoft },
+  expiredBadge: { backgroundColor: colors.disabled },
   badgeText: { fontSize: 12, fontWeight: '900' },
-  availableText: { color: '#15803d' },
-  usedText: { color: '#b91c1c' },
-  expiryText: { color: '#4338ca' },
-  soonText: { color: '#b45309' },
-  expiredText: { color: '#4b5563' },
-  expiredMeta: { color: '#6b7280' },
+  availableText: { color: colors.success },
+  usedText: { color: colors.dangerText },
+  expiryText: { color: colors.primarySoftText },
+  soonText: { color: colors.warningText },
+  expiredText: { color: colors.textMuted },
+  expiredMeta: { color: colors.textSubtle },
   actions: { gap: 12 },
   action: { borderRadius: 18, alignItems: 'center', paddingVertical: 16 },
-  zoom: { backgroundColor: '#111827' },
-  claim: { backgroundColor: '#dcfce7' },
-  primary: { backgroundColor: '#111827' },
-  secondary: { backgroundColor: '#eef2ff' },
-  danger: { backgroundColor: '#fee2e2' },
+  zoom: { backgroundColor: colors.text },
+  claim: { backgroundColor: colors.successSoft },
+  primary: { backgroundColor: colors.text },
+  secondary: { backgroundColor: colors.primarySoft },
+  danger: { backgroundColor: colors.dangerSoft },
   disabled: { opacity: 0.45 },
-  primaryText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  zoomText: { color: '#fff', fontWeight: '900', fontSize: 16 },
-  claimButtonText: { color: '#15803d', fontWeight: '900', fontSize: 16 },
-  secondaryText: { color: '#3730a3', fontWeight: '900', fontSize: 16 },
-  dangerText: { color: '#b91c1c', fontWeight: '900', fontSize: 16 },
-  usageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 12 },
-  usageUser: { color: '#111827', fontWeight: '900' },
-  usageTime: { color: '#6b7280', marginTop: 3 },
-  usageAmount: { color: '#111827', fontWeight: '900' },
-  emptyUsage: { color: '#6b7280', fontWeight: '700' },
+  primaryText: { color: colors.surface, fontWeight: '900', fontSize: 16 },
+  zoomText: { color: colors.surface, fontWeight: '900', fontSize: 16 },
+  claimButtonText: { color: colors.success, fontWeight: '900', fontSize: 16 },
+  secondaryText: { color: colors.primarySoftText, fontWeight: '900', fontSize: 16 },
+  dangerText: { color: colors.dangerText, fontWeight: '900', fontSize: 16 },
+  usageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.surfaceMuted, paddingTop: 12 },
+  usageUser: { color: colors.text, fontWeight: '900' },
+  usageTime: { color: colors.textSubtle, marginTop: 3 },
+  usageAmount: { color: colors.text, fontWeight: '900' },
+  emptyUsage: { color: colors.textSubtle, fontWeight: '700' },
 });

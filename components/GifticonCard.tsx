@@ -1,15 +1,19 @@
+import { useMemo } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatGifticonAmount } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { getGifticonImageUrl } from '@/lib/gifticons';
 import { pb } from '@/lib/pb';
+import { useTheme, type ThemeColors } from '@/lib/theme';
 import type { Gifticon } from '@/lib/types';
 import { displayUser } from '@/lib/users';
 
 type Props = { item: Gifticon; onPress: () => void };
 
 export function GifticonCard({ item, onPress }: Props) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const used = item.status === 'USED';
   const expiry = expiryInfo(item.expired_at);
   const expiryLabel = formatExpiryDday(expiry);
@@ -35,31 +39,31 @@ export function GifticonCard({ item, onPress }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: { flexDirection: 'row', gap: 14, borderRadius: 22, backgroundColor: '#fff', padding: 14, shadowColor: '#0f172a', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
-  expiredCard: { opacity: 0.58, backgroundColor: '#f3f4f6' },
+const createStyles = (colors: ThemeColors) => StyleSheet.create({
+  card: { flexDirection: 'row', gap: 14, borderRadius: 22, backgroundColor: colors.surface, padding: 14, shadowColor: colors.shadow, shadowOpacity: 0.16, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2, borderWidth: 1, borderColor: colors.border },
+  expiredCard: { opacity: 0.58, backgroundColor: colors.surfaceMuted },
   pressed: { opacity: 0.8, transform: [{ scale: 0.99 }] },
-  thumbnail: { width: 82, height: 82, borderRadius: 16, backgroundColor: '#e5e7eb' },
+  thumbnail: { width: 82, height: 82, borderRadius: 16, backgroundColor: colors.disabled },
   body: { flex: 1, justifyContent: 'center', gap: 7 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  name: { flex: 1, fontSize: 17, fontWeight: '800', color: '#111827' },
-  amount: { fontSize: 15, fontWeight: '700', color: '#374151' },
-  meta: { color: '#4f46e5', fontWeight: '700' },
-  claimText: { color: '#6b7280', fontWeight: '900' },
-  claimMine: { color: '#15803d' },
-  claimOther: { color: '#b45309' },
-  expiredMeta: { color: '#6b7280' },
-  memo: { color: '#6b7280' },
+  name: { flex: 1, fontSize: 17, fontWeight: '800', color: colors.text },
+  amount: { fontSize: 15, fontWeight: '700', color: colors.textMuted },
+  meta: { color: colors.primarySoftText, fontWeight: '700' },
+  claimText: { color: colors.textSubtle, fontWeight: '900' },
+  claimMine: { color: colors.success },
+  claimOther: { color: colors.warningText },
+  expiredMeta: { color: colors.textSubtle },
+  memo: { color: colors.textSubtle },
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
-  availableBadge: { backgroundColor: '#dcfce7' },
-  usedBadge: { backgroundColor: '#fee2e2' },
-  expiryBadge: { backgroundColor: '#eef2ff' },
-  soonBadge: { backgroundColor: '#fef3c7' },
-  expiredBadge: { backgroundColor: '#e5e7eb' },
+  availableBadge: { backgroundColor: colors.successSoft },
+  usedBadge: { backgroundColor: colors.dangerSoft },
+  expiryBadge: { backgroundColor: colors.primarySoft },
+  soonBadge: { backgroundColor: colors.warningSoft },
+  expiredBadge: { backgroundColor: colors.surfaceMuted },
   badgeText: { fontSize: 12, fontWeight: '900' },
-  availableText: { color: '#15803d' },
-  usedText: { color: '#b91c1c' },
-  expiryText: { color: '#4338ca' },
-  soonText: { color: '#b45309' },
-  expiredText: { color: '#4b5563' },
+  availableText: { color: colors.successText },
+  usedText: { color: colors.dangerText },
+  expiryText: { color: colors.primarySoftText },
+  soonText: { color: colors.warningText },
+  expiredText: { color: colors.textMuted },
 });
