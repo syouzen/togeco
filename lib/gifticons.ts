@@ -6,11 +6,13 @@ import type { Gifticon, GifticonCreateInput } from './types';
 
 const COLLECTION = 'gifticons';
 export type GifticonSortMode = 'latest' | 'expiring';
+export type GifticonStatusTab = 'AVAILABLE' | 'USED' | 'ALL';
 
-export async function listGifticons(sortMode: GifticonSortMode = 'latest'): Promise<Gifticon[]> {
+export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: GifticonStatusTab = 'AVAILABLE'): Promise<Gifticon[]> {
   await ensureAuth();
   const items = await pb.collection(COLLECTION).getFullList<Gifticon>({
     sort: sortMode === 'expiring' ? 'expired_at' : '-created',
+    ...(tab === 'ALL' ? {} : { filter: `status = "${tab}"` }),
   });
   if (sortMode !== 'expiring') return items;
   return [...items].sort((a, b) => {
