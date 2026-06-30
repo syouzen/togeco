@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GifticonCard } from '@/components/GifticonCard';
+import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
 import { type GifticonSortMode, type GifticonStatusTab, listGifticons } from '@/lib/gifticons';
 import { isAuthenticated, logout } from '@/lib/pb';
 
@@ -12,6 +13,7 @@ export default function IndexScreen() {
   const [sortMode, setSortMode] = useState<GifticonSortMode>('latest');
   const query = useQuery({ queryKey: ['gifticons', { tab, sortMode }], queryFn: () => listGifticons(sortMode, tab), enabled: isAuthenticated() });
   const { refetch } = query;
+  useRealtimeGifticons();
 
   useFocusEffect(useCallback(() => {
     if (!isAuthenticated()) {
