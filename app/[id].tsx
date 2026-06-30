@@ -158,7 +158,7 @@ export default function DetailScreen() {
           <Pressable style={[styles.action, styles.secondary]} onPress={() => router.push(`/edit/${id}`)}><Text style={styles.secondaryText}>편집</Text></Pressable>
           {draft ? <Pressable style={[styles.action, styles.claim]} disabled={publishMutation.isPending} onPress={() => publishMutation.mutate()}><Text style={styles.claimButtonText}>사용 가능으로 전환</Text></Pressable> : null}
           {claimedByMe ? <Pressable style={[styles.action, styles.secondary]} disabled={unclaimMutation.isPending} onPress={() => unclaimMutation.mutate()}><Text style={styles.secondaryText}>찜 해제</Text></Pressable> : !claim.active && !draft ? <Pressable style={[styles.action, styles.claim]} disabled={claimMutation.isPending} onPress={() => claimMutation.mutate()}><Text style={styles.claimButtonText}>찜하기</Text></Pressable> : null}
-          <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>바코드 크게</Text></Pressable>
+          <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>매장 사용 모드</Text></Pressable>
           <Pressable style={[styles.action, styles.primary, !canSpend && styles.disabled]} disabled={!canSpend || spendMutation.isPending} onPress={() => confirmClaimedByOther(() => setSpendOpen(true))}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
           <Pressable style={[styles.action, styles.secondary, !usageActionsEnabled && styles.disabled]} disabled={!usageActionsEnabled || usedMutation.isPending} onPress={() => confirmClaimedByOther(() => usedMutation.mutate())}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
           <Pressable style={[styles.action, styles.danger]} disabled={deleteMutation.isPending} onPress={confirmDelete}><Text style={styles.dangerText}>삭제</Text></Pressable>
@@ -186,7 +186,7 @@ export default function DetailScreen() {
         </View>
       </ScrollView>
       {hasAmount ? <AmountModal visible={spendOpen} remainingAmount={item.remaining_amount ?? 0} isSaving={spendMutation.isPending} onClose={() => setSpendOpen(false)} onSubmit={(amount) => spendMutation.mutate(amount)} /> : null}
-      <BarcodeZoom uri={imageUri} visible={barcodeZoomOpen} onClose={() => setBarcodeZoomOpen(false)} />
+      <BarcodeZoom uri={imageUri} visible={barcodeZoomOpen} barcode={item.barcode} amountLabel={formatGifticonAmount(item.remaining_amount, item.total_amount)} onClose={() => setBarcodeZoomOpen(false)} />
     </>
   );
 }
@@ -230,7 +230,7 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   expiredMeta: { color: colors.textSubtle },
   actions: { gap: 12 },
   action: { borderRadius: 18, alignItems: 'center', paddingVertical: 16 },
-  zoom: { backgroundColor: colors.text },
+  zoom: { backgroundColor: colors.success },
   claim: { backgroundColor: colors.successSoft },
   primary: { backgroundColor: colors.text },
   secondary: { backgroundColor: colors.primarySoft },
