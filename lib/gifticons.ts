@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImageManipulator from 'expo-image-manipulator';
 
 import { claimExpiresAt, editGifticonAmounts, nextStatusAfterSpend, revertLedgerEntry, usageLedgerEntry } from './domain';
+import { expiryInfo } from './expiry';
 import { ensureAuth, pb } from './pb';
 import type { Gifticon, GifticonCreateInput, GifticonUpdateInput, Usage } from './types';
 
@@ -12,6 +13,15 @@ type PendingUsageRecord = { gifticonId: string; payload: Record<string, unknown>
 export type GifticonSortMode = 'latest' | 'expiring';
 export type GifticonStatusTab = 'DRAFT' | 'AVAILABLE' | 'USED' | 'ALL';
 
+function moveExpiredToBottom(items: Gifticon[]): Gifticon[] {
+  return [...items].sort((a, b) => {
+    const aExpired = expiryInfo(a.expired_at).state === 'expired';
+    const bExpired = expiryInfo(b.expired_at).state === 'expired';
+    if (aExpired === bExpired) return 0;
+    return aExpired ? 1 : -1;
+  });
+}
+
 export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: GifticonStatusTab = 'AVAILABLE'): Promise<Gifticon[]> {
   await ensureAuth();
   const items = await pb.collection(COLLECTION).getFullList<Gifticon>({
@@ -19,8 +29,13 @@ export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: 
     expand: 'claimed_by',
     ...(tab === 'ALL' ? {} : { filter: `status = "${tab}"` }),
   });
-  if (sortMode !== 'expiring') return items;
+  if (sortMode !== 'expiring') return moveExpiredToBottom(items);
   return [...items].sort((a, b) => {
+    const aState = expiryInfo(a.expired_at).state;
+    const bState = expiryInfo(b.expired_at).state;
+    const aExpired = aState === 'expired';
+    const bExpired = bState === 'expired';
+    if (aExpired !== bExpired) return aExpired ? 1 : -1;
     const aExpiry = a.expired_at?.trim();
     const bExpiry = b.expired_at?.trim();
     if (!aExpiry && !bExpiry) return 0;
