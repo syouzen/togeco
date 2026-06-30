@@ -8,6 +8,12 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ['pb_hooks/**/*.js'],
+    languageOptions: {
+      globals: { routerAdd: 'readonly', DynamicModel: 'readonly', $os: 'readonly', $http: 'readonly', $apis: 'readonly' }
+    }
+  },
+  {
     files: ['**/*.{ts,tsx}'],
     plugins: { react, 'react-hooks': reactHooks },
     languageOptions: { parserOptions: { ecmaFeatures: { jsx: true } } },

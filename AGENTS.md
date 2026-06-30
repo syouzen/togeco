@@ -21,6 +21,7 @@ Build a personal app for a small group to share gifticon images and jointly mana
 - `expo-image-picker` for image selection
 - `expo-image-manipulator` for pre-upload resize/compression
 - `@react-native-async-storage/async-storage` for PocketBase token persistence
+- `@react-native-ml-kit/barcode-scanning` for on-device barcode extraction. This requires a dev build, not Expo Go.
 - Avoid adding global client state libraries unless the user approves it; use React Query for server state and local component state for screen state.
 
 ## Backend contract
@@ -47,6 +48,8 @@ Fields:
 - `remaining_amount`: number
 - `status`: single select, `AVAILABLE` or `USED`
 - `memo`: text, optional
+- `expiry`: date, optional
+- `barcode`: text, optional; check duplicates before create when present
 - `created`: autodate, used for latest-first sorting
 - `id`: PocketBase automatic id
 
@@ -107,6 +110,8 @@ app/
 - Pick image from gallery.
 - Resize/compress to max width 1080px, JPEG quality around 0.7 before upload.
 - Required amount input.
+- Exchange coupons are allowed: no amount, no partial spending.
+- Scan auto-fill uses `/api/scan` for Gemini text extraction and ML Kit for barcode extraction; never auto-save scan results.
 - Upload via `FormData` to PocketBase file field.
 - Initial `remaining_amount` equals `total_amount` and status is `AVAILABLE`.
 
@@ -125,6 +130,13 @@ await pb.collection('gifticons').update(id, {
 
 - Mark used sets `status: 'USED'` and `remaining_amount: 0`.
 - Delete requires one confirmation and then deletes the record; PocketBase deletes the attached file.
+- Exchange coupons disable partial spend and use only available/used state.
+
+### PocketBase scan hook
+
+- `pb_hooks/main.pb.js` defines authenticated `POST /api/scan`.
+- It expects `{ imageBase64 }`, calls Gemini 2.5 Flash with `GEMINI_API_KEY`, and returns `{ name, amount, expiry, isExchange }`.
+- Keep Gemini API keys only on the NAS/PocketBase container, never in app env.
 
 ## Acceptance checklist
 
@@ -136,6 +148,8 @@ await pb.collection('gifticons').update(id, {
 - [ ] A second device sees changes after focus/refetch or pull-to-refresh.
 - [ ] Login screen exists; no signup UI exists; data screens require a valid PocketBase auth token.
 - [ ] Login persists across app restarts through AsyncStorage; logout clears the stored token.
+- [ ] Add screen scan button selects a gallery image, extracts barcode/text, prefills editable fields, and never auto-saves.
+- [ ] Exchange coupons save without amount and disable partial spend.
 
 ## Branch and release workflow
 
