@@ -13,6 +13,7 @@ export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: 
   await ensureAuth();
   const items = await pb.collection(COLLECTION).getFullList<Gifticon>({
     sort: sortMode === 'expiring' ? 'expired_at' : '-created',
+    expand: 'claimed_by',
     ...(tab === 'ALL' ? {} : { filter: `status = "${tab}"` }),
   });
   if (sortMode !== 'expiring') return items;
@@ -28,7 +29,19 @@ export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: 
 
 export async function getGifticon(id: string): Promise<Gifticon> {
   await ensureAuth();
-  return pb.collection(COLLECTION).getOne<Gifticon>(id, { expand: 'owner' });
+  return pb.collection(COLLECTION).getOne<Gifticon>(id, { expand: 'owner,claimed_by' });
+}
+
+export async function claimGifticon(id: string): Promise<Gifticon> {
+  await ensureAuth();
+  const user = pb.authStore.record?.id;
+  if (!user) throw new Error('로그인이 필요합니다.');
+  return pb.collection(COLLECTION).update<Gifticon>(id, { claimed_by: user, claimed_at: new Date().toISOString() });
+}
+
+export async function unclaimGifticon(id: string): Promise<Gifticon> {
+  await ensureAuth();
+  return pb.collection(COLLECTION).update<Gifticon>(id, { claimed_by: null, claimed_at: null });
 }
 
 export async function listGifticonUsages(id: string): Promise<Usage[]> {

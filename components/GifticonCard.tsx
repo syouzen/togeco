@@ -3,7 +3,9 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatGifticonAmount } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { getGifticonImageUrl } from '@/lib/gifticons';
+import { pb } from '@/lib/pb';
 import type { Gifticon } from '@/lib/types';
+import { displayUser } from '@/lib/users';
 
 type Props = { item: Gifticon; onPress: () => void };
 
@@ -12,6 +14,9 @@ export function GifticonCard({ item, onPress }: Props) {
   const expiry = expiryInfo(item.expired_at);
   const expiryLabel = formatExpiryDday(expiry);
   const expired = expiry.state === 'expired';
+  const currentUserId = pb.authStore.record?.id;
+  const claimedByMe = Boolean(item.claimed_by && item.claimed_by === currentUserId);
+  const claimedByOther = Boolean(item.claimed_by && item.claimed_by !== currentUserId);
   return (
     <Pressable style={({ pressed }) => [styles.card, expired && styles.expiredCard, pressed && styles.pressed]} onPress={onPress}>
       <Image source={{ uri: getGifticonImageUrl(item) }} style={styles.thumbnail} />
@@ -22,6 +27,7 @@ export function GifticonCard({ item, onPress }: Props) {
           <View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View>
         </View>
         <Text style={styles.amount}>{formatGifticonAmount(item.remaining_amount, item.total_amount)}</Text>
+        {item.claimed_by ? <Text style={[styles.claimText, claimedByMe && styles.claimMine, claimedByOther && styles.claimOther]}>{claimedByMe ? '내 찜' : `${displayUser(item.expand?.claimed_by)} 사용 예정`}</Text> : null}
         {item.expired_at ? <Text style={[styles.meta, expired && styles.expiredMeta]}>유효기간 {item.expired_at.slice(0, 10)}</Text> : null}
         {item.memo ? <Text style={styles.memo} numberOfLines={1}>{item.memo}</Text> : null}
       </View>
@@ -39,6 +45,9 @@ const styles = StyleSheet.create({
   name: { flex: 1, fontSize: 17, fontWeight: '800', color: '#111827' },
   amount: { fontSize: 15, fontWeight: '700', color: '#374151' },
   meta: { color: '#4f46e5', fontWeight: '700' },
+  claimText: { color: '#6b7280', fontWeight: '900' },
+  claimMine: { color: '#15803d' },
+  claimOther: { color: '#b45309' },
   expiredMeta: { color: '#6b7280' },
   memo: { color: '#6b7280' },
   badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },

@@ -17,7 +17,9 @@ export type Gifticon = {
   expired_at?: string | null;
   barcode?: string;
   owner?: string;
-  expand?: { owner?: UserSummary };
+  claimed_by?: string | null;
+  claimed_at?: string | null;
+  expand?: { owner?: UserSummary; claimed_by?: UserSummary };
   created: string;
 };
 
