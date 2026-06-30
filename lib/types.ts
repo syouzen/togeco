@@ -1,5 +1,11 @@
 export type GifticonStatus = 'AVAILABLE' | 'USED';
 
+export type UserSummary = {
+  id: string;
+  email?: string;
+  name?: string;
+};
+
 export type Gifticon = {
   id: string;
   name?: string;
@@ -10,7 +16,18 @@ export type Gifticon = {
   memo?: string;
   expired_at?: string | null;
   barcode?: string;
+  owner?: string;
+  expand?: { owner?: UserSummary };
   created: string;
+};
+
+export type Usage = {
+  id: string;
+  gifticon: string;
+  user?: string;
+  amount: number;
+  created: string;
+  expand?: { user?: UserSummary };
 };
 
 export type GifticonCreateInput = {
