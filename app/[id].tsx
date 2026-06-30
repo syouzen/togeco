@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AmountModal } from '@/components/AmountModal';
+import { BarcodeZoom } from '@/components/BarcodeZoom';
 import { formatGifticonAmount } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { deleteGifticon, getGifticon, getGifticonImageUrl, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
@@ -13,6 +14,7 @@ export default function DetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [spendOpen, setSpendOpen] = useState(false);
+  const [barcodeZoomOpen, setBarcodeZoomOpen] = useState(false);
   const query = useQuery({ queryKey: ['gifticons', id], queryFn: () => getGifticon(id), enabled: Boolean(id) && isAuthenticated() });
   const { refetch } = query;
   useFocusEffect(useCallback(() => {
@@ -34,11 +36,12 @@ export default function DetailScreen() {
   const used = item.status === 'USED';
   const expiry = expiryInfo(item.expired_at);
   const expiryLabel = formatExpiryDday(expiry);
+  const imageUri = getGifticonImageUrl(item);
   const canSpend = hasAmount && !used;
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Image source={{ uri: getGifticonImageUrl(item) }} style={styles.image} />
+        <Image source={{ uri: imageUri }} style={styles.image} />
         <View style={styles.panel}>
           <View style={styles.titleRow}><Text style={styles.title}>{item.name?.trim() || '이름 없는 기프티콘'}</Text>{expiryLabel ? <View style={[styles.badge, styles.expiryBadge, expiry.state === 'soon' && styles.soonBadge, expiry.state === 'expired' && styles.expiredBadge]}><Text style={[styles.badgeText, styles.expiryText, expiry.state === 'soon' && styles.soonText, expiry.state === 'expired' && styles.expiredText]}>{expiryLabel}</Text></View> : null}<View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View></View>
           <Text style={styles.amount}>{formatGifticonAmount(item.remaining_amount, item.total_amount)}</Text>
@@ -47,12 +50,14 @@ export default function DetailScreen() {
           {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
         </View>
         <View style={styles.actions}>
+          <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>바코드 크게</Text></Pressable>
           <Pressable style={[styles.action, styles.primary, !canSpend && styles.disabled]} disabled={!canSpend || spendMutation.isPending} onPress={() => setSpendOpen(true)}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
           <Pressable style={[styles.action, styles.secondary]} disabled={usedMutation.isPending} onPress={() => usedMutation.mutate()}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
           <Pressable style={[styles.action, styles.danger]} disabled={deleteMutation.isPending} onPress={confirmDelete}><Text style={styles.dangerText}>삭제</Text></Pressable>
         </View>
       </ScrollView>
       {hasAmount ? <AmountModal visible={spendOpen} remainingAmount={item.remaining_amount ?? 0} isSaving={spendMutation.isPending} onClose={() => setSpendOpen(false)} onSubmit={(amount) => spendMutation.mutate(amount)} /> : null}
+      <BarcodeZoom uri={imageUri} visible={barcodeZoomOpen} onClose={() => setBarcodeZoomOpen(false)} />
     </>
   );
 }
@@ -83,11 +88,13 @@ const styles = StyleSheet.create({
   expiredMeta: { color: '#6b7280' },
   actions: { gap: 12 },
   action: { borderRadius: 18, alignItems: 'center', paddingVertical: 16 },
+  zoom: { backgroundColor: '#111827' },
   primary: { backgroundColor: '#111827' },
   secondary: { backgroundColor: '#eef2ff' },
   danger: { backgroundColor: '#fee2e2' },
   disabled: { opacity: 0.45 },
   primaryText: { color: '#fff', fontWeight: '900', fontSize: 16 },
+  zoomText: { color: '#fff', fontWeight: '900', fontSize: 16 },
   secondaryText: { color: '#3730a3', fontWeight: '900', fontSize: 16 },
   dangerText: { color: '#b91c1c', fontWeight: '900', fontSize: 16 },
 });

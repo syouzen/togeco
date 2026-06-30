@@ -17,6 +17,7 @@
     "@react-native-ml-kit/barcode-scanning": "^2.0.0",
     "@tanstack/react-query": "latest",
     "expo": "latest",
+    "expo-brightness": "~56.0.5",
     "expo-constants": "latest",
     "expo-image-manipulator": "latest",
     "expo-image-picker": "latest",
