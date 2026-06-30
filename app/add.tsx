@@ -62,7 +62,7 @@ export default function AddScreen() {
     if (!parsed.ok) { Alert.alert('금액 확인', parsed.message); return; }
     const expiryResult = validateExpiryInput(expiry);
     if (!expiryResult.ok) { Alert.alert('유효기간 확인', expiryResult.message); return; }
-    mutation.mutate({ imageUri, name, memo, totalAmount: parsed.amount, expiry: expiryResult.expiry, barcode, isExchange });
+    mutation.mutate({ imageUri, name, memo, totalAmount: parsed.amount, expiredAt: expiryResult.expiry, barcode, isExchange });
   };
 
   return (

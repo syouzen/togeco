@@ -5,10 +5,22 @@ import { ensureAuth, pb } from './pb';
 import type { Gifticon, GifticonCreateInput } from './types';
 
 const COLLECTION = 'gifticons';
+export type GifticonSortMode = 'latest' | 'expiring';
 
-export async function listGifticons(): Promise<Gifticon[]> {
+export async function listGifticons(sortMode: GifticonSortMode = 'latest'): Promise<Gifticon[]> {
   await ensureAuth();
-  return pb.collection(COLLECTION).getFullList<Gifticon>({ sort: '-created' });
+  const items = await pb.collection(COLLECTION).getFullList<Gifticon>({
+    sort: sortMode === 'expiring' ? 'expired_at' : '-created',
+  });
+  if (sortMode !== 'expiring') return items;
+  return [...items].sort((a, b) => {
+    const aExpiry = a.expired_at?.trim();
+    const bExpiry = b.expired_at?.trim();
+    if (!aExpiry && !bExpiry) return 0;
+    if (!aExpiry) return 1;
+    if (!bExpiry) return -1;
+    return aExpiry.localeCompare(bExpiry);
+  });
 }
 
 export async function getGifticon(id: string): Promise<Gifticon> {
@@ -48,7 +60,7 @@ export async function createGifticon(input: GifticonCreateInput): Promise<Giftic
   form.append('name', input.name?.trim() ?? '');
   form.append('status', 'AVAILABLE');
   form.append('memo', input.memo?.trim() ?? '');
-  if (input.expiry) form.append('expiry', input.expiry);
+  if (input.expiredAt) form.append('expired_at', input.expiredAt);
   if (barcode) form.append('barcode', barcode);
   if (!input.isExchange && input.totalAmount != null) {
     form.append('total_amount', String(input.totalAmount));

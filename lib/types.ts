@@ -8,7 +8,7 @@ export type Gifticon = {
   remaining_amount?: number | null;
   status: GifticonStatus;
   memo?: string;
-  expiry?: string | null;
+  expired_at?: string | null;
   barcode?: string;
   created: string;
 };
@@ -18,7 +18,7 @@ export type GifticonCreateInput = {
   totalAmount: number | null;
   imageUri: string;
   memo?: string;
-  expiry?: string | null;
+  expiredAt?: string | null;
   barcode?: string;
   isExchange?: boolean;
 };
