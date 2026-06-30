@@ -7,6 +7,7 @@ import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, St
 import { validateExpiryInput, validateGifticonAmount } from '@/lib/domain';
 import { createGifticon } from '@/lib/gifticons';
 import { isAuthenticated } from '@/lib/pb';
+import { setDefaultExpiryReminders } from '@/lib/reminders';
 import { scanGifticon } from '@/lib/scan';
 
 export default function AddScreen() {
@@ -20,7 +21,15 @@ export default function AddScreen() {
   const [isExchange, setIsExchange] = useState(false);
   const mutation = useMutation({
     mutationFn: createGifticon,
-    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); },
+    onSuccess: async (gifticon) => {
+      try {
+        await setDefaultExpiryReminders(gifticon.id, gifticon.name || name || '기프티콘', gifticon.expired_at);
+      } catch (error) {
+        Alert.alert('알림 설정 확인', error instanceof Error ? `저장은 완료됐지만 자동 알림은 설정하지 못했습니다. ${error.message}` : '저장은 완료됐지만 자동 알림은 설정하지 못했습니다.');
+      }
+      await queryClient.invalidateQueries({ queryKey: ['gifticons'] });
+      router.back();
+    },
     onError: (error: Error) => Alert.alert(error.message.includes('이미 등록된 바코드') ? '이미 등록됨' : '저장 실패', error.message.includes('이미 등록된 바코드') ? '같은 바코드의 기프티콘이 이미 등록되어 있습니다.' : '기프티콘을 저장하지 못했습니다. 네트워크와 PocketBase 설정을 확인해주세요.'),
   });
   const scanMutation = useMutation({

@@ -37,6 +37,7 @@ export type Reminder = {
   user: string;
   gifticon: string;
   remind_at: string;
+  offset_days: number;
   sent: boolean;
   created: string;
 };
