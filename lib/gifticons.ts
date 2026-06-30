@@ -1,13 +1,13 @@
 import * as ImageManipulator from 'expo-image-manipulator';
 
-import { nextStatusAfterSpend } from './domain';
+import { claimExpiresAt, nextStatusAfterSpend, revertLedgerEntry, usageLedgerEntry } from './domain';
 import { ensureAuth, pb } from './pb';
 import type { Gifticon, GifticonCreateInput, Usage } from './types';
 
 const COLLECTION = 'gifticons';
 const USAGES_COLLECTION = 'usages';
 export type GifticonSortMode = 'latest' | 'expiring';
-export type GifticonStatusTab = 'AVAILABLE' | 'USED' | 'ALL';
+export type GifticonStatusTab = 'DRAFT' | 'AVAILABLE' | 'USED' | 'ALL';
 
 export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: GifticonStatusTab = 'AVAILABLE'): Promise<Gifticon[]> {
   await ensureAuth();
@@ -36,12 +36,18 @@ export async function claimGifticon(id: string): Promise<Gifticon> {
   await ensureAuth();
   const user = pb.authStore.record?.id;
   if (!user) throw new Error('로그인이 필요합니다.');
-  return pb.collection(COLLECTION).update<Gifticon>(id, { claimed_by: user, claimed_at: new Date().toISOString() });
+  const now = new Date();
+  return pb.collection(COLLECTION).update<Gifticon>(id, { claimed_by: user, claimed_at: now.toISOString(), claim_expires_at: claimExpiresAt(now) });
 }
 
 export async function unclaimGifticon(id: string): Promise<Gifticon> {
   await ensureAuth();
-  return pb.collection(COLLECTION).update<Gifticon>(id, { claimed_by: null, claimed_at: null });
+  return pb.collection(COLLECTION).update<Gifticon>(id, { claimed_by: null, claimed_at: null, claim_expires_at: null });
+}
+
+export async function publishDraftGifticon(id: string): Promise<Gifticon> {
+  await ensureAuth();
+  return pb.collection(COLLECTION).update<Gifticon>(id, { status: 'AVAILABLE' });
 }
 
 export async function listGifticonUsages(id: string): Promise<Usage[]> {
@@ -49,7 +55,7 @@ export async function listGifticonUsages(id: string): Promise<Usage[]> {
   return pb.collection(USAGES_COLLECTION).getFullList<Usage>({
     filter: `gifticon = "${id.replaceAll('"', '\\"')}"`,
     sort: '-created',
-    expand: 'user',
+    expand: 'user,reverted_by,reversal_of',
   });
 }
 
@@ -85,7 +91,8 @@ export async function createGifticon(input: GifticonCreateInput): Promise<Giftic
   );
   const form = new FormData();
   form.append('name', input.name?.trim() ?? '');
-  form.append('status', 'AVAILABLE');
+  if (input.status === 'DRAFT') form.append('status', 'DRAFT');
+  else form.append('status', 'AVAILABLE');
   form.append('owner', owner);
   form.append('memo', input.memo?.trim() ?? '');
   if (input.expiredAt) form.append('expired_at', input.expiredAt);
@@ -105,7 +112,7 @@ export async function spendGifticon(id: string, remainingAmount: number, amount:
     'remaining_amount-': amount,
     ...(next.status === 'USED' ? { status: 'USED' } : {}),
   });
-  await recordUsage(id, amount);
+  await recordUsage(id, usageLedgerEntry({ actionType: 'SPEND', beforeAmount: remainingAmount, amount }));
   return updated;
 }
 
@@ -113,18 +120,39 @@ export async function markGifticonUsed(id: string, remainingAmount: number | nul
   await ensureAuth();
   const hasAmount = remainingAmount != null;
   const updated = await pb.collection(COLLECTION).update<Gifticon>(id, hasAmount ? { status: 'USED', remaining_amount: 0 } : { status: 'USED' });
-  await recordUsage(id, remainingAmount ?? 0);
+  await recordUsage(id, usageLedgerEntry({ actionType: 'MARK_USED', beforeAmount: remainingAmount }));
   return updated;
 }
 
-async function recordUsage(gifticonId: string, amount: number): Promise<void> {
+async function recordUsage(gifticonId: string, ledger: ReturnType<typeof usageLedgerEntry> | ReturnType<typeof revertLedgerEntry>, extra: Partial<Usage> = {}): Promise<void> {
   const user = pb.authStore.record?.id;
   if (!user) return;
   try {
-    await pb.collection(USAGES_COLLECTION).create({ gifticon: gifticonId, user, amount });
+    await pb.collection(USAGES_COLLECTION).create({ gifticon: gifticonId, user, ...ledger, ...extra });
   } catch {
     // Usage history is best-effort: the gifticon update is the source of truth.
   }
+}
+
+export async function revertUsage(gifticonId: string, usage: Usage, currentRemainingAmount: number | null): Promise<Gifticon> {
+  await ensureAuth();
+  const user = pb.authStore.record?.id;
+  if (!user) throw new Error('로그인이 필요합니다.');
+  if (usage.reverted_at || usage.action_type === 'REVERT') throw new Error('이미 되돌렸거나 되돌릴 수 없는 사용 내역입니다.');
+  const existingRevert = await pb.collection(USAGES_COLLECTION).getFirstListItem<Usage>(`reversal_of = "${usage.id.replaceAll('"', '\\"')}"`).catch(() => null);
+  if (existingRevert) throw new Error('이미 되돌린 사용 내역입니다.');
+
+  const gifticon = await getGifticon(gifticonId);
+  const hasAmount = gifticon.remaining_amount != null;
+  const ledger = revertLedgerEntry({ originalAmount: usage.amount, currentAmount: hasAmount ? currentRemainingAmount ?? 0 : null });
+  const updatePayload = hasAmount
+    ? { 'remaining_amount+': usage.amount, status: 'AVAILABLE' as const }
+    : { status: 'AVAILABLE' as const };
+  const updated = await pb.collection(COLLECTION).update<Gifticon>(gifticonId, updatePayload);
+  const now = new Date().toISOString();
+  await pb.collection(USAGES_COLLECTION).update(usage.id, { reverted_at: now, reverted_by: user }).catch(() => {});
+  await recordUsage(gifticonId, ledger, { reversal_of: usage.id });
+  return updated;
 }
 
 export async function deleteGifticon(id: string): Promise<boolean> {

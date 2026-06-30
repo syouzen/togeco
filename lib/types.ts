@@ -1,4 +1,4 @@
-export type GifticonStatus = 'AVAILABLE' | 'USED';
+export type GifticonStatus = 'DRAFT' | 'AVAILABLE' | 'USED';
 
 export type UserSummary = {
   id: string;
@@ -19,6 +19,7 @@ export type Gifticon = {
   owner?: string;
   claimed_by?: string | null;
   claimed_at?: string | null;
+  claim_expires_at?: string | null;
   expand?: { owner?: UserSummary; claimed_by?: UserSummary };
   created: string;
 };
@@ -28,8 +29,15 @@ export type Usage = {
   gifticon: string;
   user?: string;
   amount: number;
+  memo?: string;
+  before_amount?: number | null;
+  after_amount?: number | null;
+  action_type?: 'SPEND' | 'MARK_USED' | 'REVERT';
+  reverted_at?: string | null;
+  reverted_by?: string | null;
+  reversal_of?: string | null;
   created: string;
-  expand?: { user?: UserSummary };
+  expand?: { user?: UserSummary; reverted_by?: UserSummary; reversal_of?: Usage };
 };
 
 export type Reminder = {
@@ -50,4 +58,5 @@ export type GifticonCreateInput = {
   expiredAt?: string | null;
   barcode?: string;
   isExchange?: boolean;
+  status?: 'DRAFT' | 'AVAILABLE';
 };

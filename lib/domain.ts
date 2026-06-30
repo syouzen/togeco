@@ -13,6 +13,31 @@ export type RawScanFields = {
   isExchange?: boolean | null;
 };
 
+export type ClaimStateInput = {
+  claimedBy?: string | null;
+  claimExpiresAt?: string | null;
+  currentUserId?: string | null;
+  now?: Date;
+};
+
+export type ClaimState = {
+  active: boolean;
+  byMe: boolean;
+  byOther: boolean;
+};
+
+export type UsageActionType = 'SPEND' | 'MARK_USED' | 'REVERT';
+
+export type UsageLedgerEntry = {
+  action_type: UsageActionType;
+  amount: number;
+  before_amount: number | null;
+  after_amount: number | null;
+};
+
+export const CLAIM_DURATION_MINUTES = 30;
+export const CLAIM_DURATION_MS = CLAIM_DURATION_MINUTES * 60 * 1000;
+
 export type NormalizedScanFields = {
   name: string;
   amountText: string;
@@ -48,6 +73,25 @@ export function nextStatusAfterSpend(remainingAmount: number, spendAmount: numbe
   return { nextRemaining, status: nextRemaining <= 0 ? 'USED' as const : 'AVAILABLE' as const };
 }
 
+export function usageLedgerEntry(input: { actionType: 'SPEND'; beforeAmount: number; amount: number } | { actionType: 'MARK_USED'; beforeAmount: number | null }): UsageLedgerEntry {
+  if (input.actionType === 'SPEND') {
+    return { action_type: 'SPEND', amount: input.amount, before_amount: input.beforeAmount, after_amount: Math.max(input.beforeAmount - input.amount, 0) };
+  }
+  if (input.beforeAmount == null) {
+    return { action_type: 'MARK_USED', amount: 0, before_amount: null, after_amount: null };
+  }
+  return { action_type: 'MARK_USED', amount: input.beforeAmount, before_amount: input.beforeAmount, after_amount: 0 };
+}
+
+export function revertLedgerEntry({ originalAmount, currentAmount }: { originalAmount: number; currentAmount: number | null }): UsageLedgerEntry {
+  return {
+    action_type: 'REVERT',
+    amount: originalAmount,
+    before_amount: currentAmount,
+    after_amount: currentAmount == null ? null : currentAmount + originalAmount,
+  };
+}
+
 export function formatWon(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`;
 }
@@ -57,10 +101,27 @@ export function formatGifticonAmount(remainingAmount?: number | null, totalAmoun
   return `${formatWon(remainingAmount)} / ${formatWon(totalAmount)}`;
 }
 
+export function gifticonStatusLabel(status: 'DRAFT' | 'AVAILABLE' | 'USED'): string {
+  if (status === 'DRAFT') return '작성중';
+  if (status === 'USED') return '다 씀';
+  return '사용가능';
+}
+
 export function validateLoginInput(email: string, password: string): string | null {
   if (email.trim().length === 0) return '이메일을 입력해주세요.';
   if (password.length === 0) return '비밀번호를 입력해주세요.';
   return null;
+}
+
+export function claimExpiresAt(now: Date = new Date()): string {
+  return new Date(now.getTime() + CLAIM_DURATION_MS).toISOString();
+}
+
+export function claimState({ claimedBy, claimExpiresAt: expiresAt, currentUserId, now = new Date() }: ClaimStateInput): ClaimState {
+  if (!claimedBy) return { active: false, byMe: false, byOther: false };
+  if (expiresAt && new Date(expiresAt).getTime() <= now.getTime()) return { active: false, byMe: false, byOther: false };
+  const byMe = Boolean(currentUserId && claimedBy === currentUserId);
+  return { active: true, byMe, byOther: !byMe };
 }
 
 export function isSaneScannedAmount(amount: number | null | undefined): amount is number {

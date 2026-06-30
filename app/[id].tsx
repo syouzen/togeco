@@ -6,9 +6,9 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { AmountModal } from '@/components/AmountModal';
 import { BarcodeZoom } from '@/components/BarcodeZoom';
 import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
-import { formatGifticonAmount, formatWon } from '@/lib/domain';
+import { claimState, formatGifticonAmount, formatWon, gifticonStatusLabel } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
-import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
+import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, publishDraftGifticon, revertUsage, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
 import { isAuthenticated, pb } from '@/lib/pb';
 import { beforeExpiry, cancelReminder, DEFAULT_EXPIRY_REMINDER_OFFSETS, isPastReminderDate, myReminders, setReminder } from '@/lib/reminders';
 import { useTheme, type ThemeColors } from '@/lib/theme';
@@ -24,6 +24,17 @@ function formatReminderDate(value?: string) {
 
 function formatReminderLabel(offsetDays: number) {
   return `만료 ${offsetDays}일 전`;
+}
+
+function formatUsageAction(actionType?: string) {
+  if (actionType === 'REVERT') return '되돌림';
+  if (actionType === 'MARK_USED') return '다 씀';
+  return '부분 차감';
+}
+
+function formatUsageBalance(before?: number | null, after?: number | null) {
+  if (before == null || after == null) return null;
+  return `${formatWon(before)} → ${formatWon(after)}`;
 }
 
 export default function DetailScreen() {
@@ -55,8 +66,14 @@ export default function DetailScreen() {
   const hasAmount = query.data?.remaining_amount != null && query.data?.total_amount != null;
   const spendMutation = useMutation({ mutationFn: (amount: number) => spendGifticon(id, query.data?.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendOpen(false); await invalidate(); }, onError: () => Alert.alert('차감 실패', '잔액 차감에 실패했습니다. 다시 시도해주세요.') });
   const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount ? query.data?.remaining_amount ?? 0 : null), onSuccess: invalidate, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });
+  const publishMutation = useMutation({ mutationFn: () => publishDraftGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('게시 실패', '작성 중 기프티콘을 사용 가능 상태로 바꾸지 못했습니다.') });
   const claimMutation = useMutation({ mutationFn: () => claimGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('찜 실패', '찜 상태를 저장하지 못했습니다.') });
   const unclaimMutation = useMutation({ mutationFn: () => unclaimGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('찜 해제 실패', '찜을 해제하지 못했습니다.') });
+  const revertMutation = useMutation({ mutationFn: (usageId: string) => {
+    const usage = usageQuery.data?.find((itemUsage) => itemUsage.id === usageId);
+    if (!usage) throw new Error('사용 내역을 찾지 못했습니다.');
+    return revertUsage(id, usage, query.data?.remaining_amount ?? null);
+  }, onSuccess: invalidate, onError: (error) => Alert.alert('되돌리기 실패', error instanceof Error ? error.message : '사용 내역을 되돌리지 못했습니다.') });
   const reminderMutation = useMutation({ mutationFn: ({ remindAt, offsetDays }: { remindAt: Date; offsetDays: number }) => setReminder(id, itemName, remindAt, offsetDays), onSuccess: async () => { await invalidate(); }, onError: (error) => Alert.alert('알림 설정 실패', error instanceof Error ? error.message : '리마인더를 저장하지 못했습니다.') });
   const cancelReminderMutation = useMutation({ mutationFn: (reminderId: string) => cancelReminder(reminderId), onSuccess: invalidate, onError: () => Alert.alert('알림 끄기 실패', '리마인더를 삭제하지 못했습니다.') });
   const deleteMutation = useMutation({ mutationFn: () => deleteGifticon(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: () => Alert.alert('삭제 실패', '삭제에 실패했습니다.') });
@@ -65,17 +82,19 @@ export default function DetailScreen() {
   if (!query.data) return <View style={styles.center}><Text style={styles.title}>기프티콘을 찾지 못했습니다.</Text></View>;
   const item = query.data;
   const used = item.status === 'USED';
+  const draft = item.status === 'DRAFT';
   const expiry = expiryInfo(item.expired_at);
   const expiryLabel = formatExpiryDday(expiry);
   const imageUri = getGifticonImageUrl(item);
   const currentUserId = pb.authStore.record?.id;
   const claimedUser = item.expand?.claimed_by;
-  const claimedByMe = Boolean(item.claimed_by && item.claimed_by === currentUserId);
-  const claimedByOther = Boolean(item.claimed_by && item.claimed_by !== currentUserId);
+  const claim = claimState({ claimedBy: item.claimed_by, claimExpiresAt: item.claim_expires_at, currentUserId });
+  const claimedByMe = claim.byMe;
+  const claimedByOther = claim.byOther;
   const claimText = claimedByMe ? '내가 사용 예정' : claimedByOther ? `${displayUser(claimedUser)}이 사용 예정` : '아직 찜 없음';
   const reminders = reminderQuery.data ?? [];
   const itemName = item.name?.trim() || '기프티콘';
-  const canSpend = hasAmount && !used;
+  const canSpend = hasAmount && !used && !draft;
   const confirmClaimedByOther = (action: () => void) => {
     if (!claimedByOther) { action(); return; }
     Alert.alert('다른 사람이 찜했어요', `${displayUser(claimedUser)}이 찜했어요. 그래도 사용할까요?`, [
@@ -100,7 +119,7 @@ export default function DetailScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Image source={{ uri: imageUri }} style={styles.image} />
         <View style={styles.panel}>
-          <View style={styles.titleRow}><Text style={styles.title}>{item.name?.trim() || '이름 없는 기프티콘'}</Text>{expiryLabel ? <View style={[styles.badge, styles.expiryBadge, expiry.state === 'soon' && styles.soonBadge, expiry.state === 'expired' && styles.expiredBadge]}><Text style={[styles.badgeText, styles.expiryText, expiry.state === 'soon' && styles.soonText, expiry.state === 'expired' && styles.expiredText]}>{expiryLabel}</Text></View> : null}<View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View></View>
+          <View style={styles.titleRow}><Text style={styles.title}>{item.name?.trim() || '이름 없는 기프티콘'}</Text>{expiryLabel ? <View style={[styles.badge, styles.expiryBadge, expiry.state === 'soon' && styles.soonBadge, expiry.state === 'expired' && styles.expiredBadge]}><Text style={[styles.badgeText, styles.expiryText, expiry.state === 'soon' && styles.soonText, expiry.state === 'expired' && styles.expiredText]}>{expiryLabel}</Text></View> : null}<View style={[styles.badge, used ? styles.usedBadge : draft ? styles.draftBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : draft ? styles.draftText : styles.availableText]}>{gifticonStatusLabel(item.status)}</Text></View></View>
           <Text style={styles.amount}>{formatGifticonAmount(item.remaining_amount, item.total_amount)}</Text>
           <Text style={styles.meta}>올린 사람 {displayUser(item.expand?.owner)}</Text>
           <Text style={[styles.claimText, claimedByMe && styles.claimMine, claimedByOther && styles.claimOther]}>{claimText}</Text>
@@ -131,7 +150,8 @@ export default function DetailScreen() {
           <Text style={styles.reminderHelp}>알림은 유효기간 기준 30/7/3/1일 전만 지원합니다. 이미 지난 날짜는 자동으로 제외됩니다.</Text>
         </View>
         <View style={styles.actions}>
-          {claimedByMe ? <Pressable style={[styles.action, styles.secondary]} disabled={unclaimMutation.isPending} onPress={() => unclaimMutation.mutate()}><Text style={styles.secondaryText}>찜 해제</Text></Pressable> : !item.claimed_by ? <Pressable style={[styles.action, styles.claim]} disabled={claimMutation.isPending} onPress={() => claimMutation.mutate()}><Text style={styles.claimButtonText}>찜하기</Text></Pressable> : null}
+          {draft ? <Pressable style={[styles.action, styles.claim]} disabled={publishMutation.isPending} onPress={() => publishMutation.mutate()}><Text style={styles.claimButtonText}>사용 가능으로 전환</Text></Pressable> : null}
+          {claimedByMe ? <Pressable style={[styles.action, styles.secondary]} disabled={unclaimMutation.isPending} onPress={() => unclaimMutation.mutate()}><Text style={styles.secondaryText}>찜 해제</Text></Pressable> : !claim.active && !draft ? <Pressable style={[styles.action, styles.claim]} disabled={claimMutation.isPending} onPress={() => claimMutation.mutate()}><Text style={styles.claimButtonText}>찜하기</Text></Pressable> : null}
           <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>바코드 크게</Text></Pressable>
           <Pressable style={[styles.action, styles.primary, !canSpend && styles.disabled]} disabled={!canSpend || spendMutation.isPending} onPress={() => confirmClaimedByOther(() => setSpendOpen(true))}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
           <Pressable style={[styles.action, styles.secondary]} disabled={usedMutation.isPending} onPress={() => confirmClaimedByOther(() => usedMutation.mutate())}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
@@ -139,15 +159,24 @@ export default function DetailScreen() {
         </View>
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>사용 내역</Text>
-          {usageQuery.data?.length ? usageQuery.data.map((usage) => (
-            <View key={usage.id} style={styles.usageRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.usageUser}>{displayUser(usage.expand?.user)}</Text>
-                <Text style={styles.usageTime}>{formatUsageTime(usage.created)}</Text>
+          {usageQuery.data?.length ? usageQuery.data.map((usage, index) => {
+            const balance = formatUsageBalance(usage.before_amount, usage.after_amount);
+            const reversible = index === 0 && usage.action_type !== 'REVERT' && !usage.reverted_at;
+            return (
+              <View key={usage.id} style={styles.usageRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.usageUser}>{formatUsageAction(usage.action_type)} · {displayUser(usage.expand?.user)}</Text>
+                  <Text style={styles.usageTime}>{formatUsageTime(usage.created)}{balance ? ` · ${balance}` : ''}</Text>
+                  {usage.memo ? <Text style={styles.usageMemo}>{usage.memo}</Text> : null}
+                  {usage.reverted_at ? <Text style={styles.revertedText}>취소됨 · {formatUsageTime(usage.reverted_at)}</Text> : null}
+                </View>
+                <View style={styles.usageSide}>
+                  <Text style={styles.usageAmount}>{usage.amount === 0 ? '사용함' : formatWon(usage.amount)}</Text>
+                  {reversible ? <Pressable style={[styles.revertButton, revertMutation.isPending && styles.disabled]} disabled={revertMutation.isPending} onPress={() => revertMutation.mutate(usage.id)}><Text style={styles.revertText}>되돌리기</Text></Pressable> : null}
+                </View>
               </View>
-              <Text style={styles.usageAmount}>{usage.amount === 0 ? '사용함' : formatWon(usage.amount)}</Text>
-            </View>
-          )) : <Text style={styles.emptyUsage}>{usageQuery.isLoading ? '사용 내역 확인 중...' : '사용 내역이 없습니다.'}</Text>}
+            );
+          }) : <Text style={styles.emptyUsage}>{usageQuery.isLoading ? '사용 내역 확인 중...' : '사용 내역이 없습니다.'}</Text>}
         </View>
       </ScrollView>
       {hasAmount ? <AmountModal visible={spendOpen} remainingAmount={item.remaining_amount ?? 0} isSaving={spendMutation.isPending} onClose={() => setSpendOpen(false)} onSubmit={(amount) => spendMutation.mutate(amount)} /> : null}
@@ -181,12 +210,14 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   availableBadge: { backgroundColor: colors.successSoft },
   usedBadge: { backgroundColor: colors.dangerSoft },
+  draftBadge: { backgroundColor: colors.warningSoft },
   expiryBadge: { backgroundColor: colors.primarySoft },
   soonBadge: { backgroundColor: colors.warningSoft },
   expiredBadge: { backgroundColor: colors.disabled },
   badgeText: { fontSize: 12, fontWeight: '900' },
   availableText: { color: colors.success },
   usedText: { color: colors.dangerText },
+  draftText: { color: colors.warningText },
   expiryText: { color: colors.primarySoftText },
   soonText: { color: colors.warningText },
   expiredText: { color: colors.textMuted },
@@ -207,6 +238,11 @@ const createStyles = (colors: ThemeColors) => StyleSheet.create({
   usageRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: colors.surfaceMuted, paddingTop: 12 },
   usageUser: { color: colors.text, fontWeight: '900' },
   usageTime: { color: colors.textSubtle, marginTop: 3 },
+  usageMemo: { color: colors.textSubtle, marginTop: 3, fontWeight: '700' },
+  revertedText: { color: colors.dangerText, marginTop: 3, fontWeight: '800' },
+  usageSide: { alignItems: 'flex-end', gap: 8 },
   usageAmount: { color: colors.text, fontWeight: '900' },
+  revertButton: { borderRadius: 999, backgroundColor: colors.warningSoft, paddingHorizontal: 10, paddingVertical: 6 },
+  revertText: { color: colors.warningText, fontWeight: '900', fontSize: 12 },
   emptyUsage: { color: colors.textSubtle, fontWeight: '700' },
 });
