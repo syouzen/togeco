@@ -2,9 +2,10 @@ import * as ImageManipulator from 'expo-image-manipulator';
 
 import { nextStatusAfterSpend } from './domain';
 import { ensureAuth, pb } from './pb';
-import type { Gifticon, GifticonCreateInput } from './types';
+import type { Gifticon, GifticonCreateInput, Usage } from './types';
 
 const COLLECTION = 'gifticons';
+const USAGES_COLLECTION = 'usages';
 export type GifticonSortMode = 'latest' | 'expiring';
 export type GifticonStatusTab = 'AVAILABLE' | 'USED' | 'ALL';
 
@@ -27,7 +28,16 @@ export async function listGifticons(sortMode: GifticonSortMode = 'latest', tab: 
 
 export async function getGifticon(id: string): Promise<Gifticon> {
   await ensureAuth();
-  return pb.collection(COLLECTION).getOne<Gifticon>(id);
+  return pb.collection(COLLECTION).getOne<Gifticon>(id, { expand: 'owner' });
+}
+
+export async function listGifticonUsages(id: string): Promise<Usage[]> {
+  await ensureAuth();
+  return pb.collection(USAGES_COLLECTION).getFullList<Usage>({
+    filter: `gifticon = "${id.replaceAll('"', '\\"')}"`,
+    sort: '-created',
+    expand: 'user',
+  });
 }
 
 export function getGifticonImageUrl(record: Gifticon): string {
@@ -48,6 +58,8 @@ export async function findGifticonByBarcode(barcode: string): Promise<Gifticon |
 
 export async function createGifticon(input: GifticonCreateInput): Promise<Gifticon> {
   await ensureAuth();
+  const owner = pb.authStore.record?.id;
+  if (!owner) throw new Error('올린 사람 정보를 확인하지 못했습니다. 다시 로그인해주세요.');
   const barcode = input.barcode?.trim() ?? '';
   if (barcode) {
     const duplicate = await findGifticonByBarcode(barcode);
@@ -61,6 +73,7 @@ export async function createGifticon(input: GifticonCreateInput): Promise<Giftic
   const form = new FormData();
   form.append('name', input.name?.trim() ?? '');
   form.append('status', 'AVAILABLE');
+  form.append('owner', owner);
   form.append('memo', input.memo?.trim() ?? '');
   if (input.expiredAt) form.append('expired_at', input.expiredAt);
   if (barcode) form.append('barcode', barcode);
@@ -75,15 +88,30 @@ export async function createGifticon(input: GifticonCreateInput): Promise<Giftic
 export async function spendGifticon(id: string, remainingAmount: number, amount: number): Promise<Gifticon> {
   await ensureAuth();
   const next = nextStatusAfterSpend(remainingAmount, amount);
-  return pb.collection(COLLECTION).update<Gifticon>(id, {
+  const updated = await pb.collection(COLLECTION).update<Gifticon>(id, {
     'remaining_amount-': amount,
     ...(next.status === 'USED' ? { status: 'USED' } : {}),
   });
+  await recordUsage(id, amount);
+  return updated;
 }
 
-export async function markGifticonUsed(id: string, hasAmount = true): Promise<Gifticon> {
+export async function markGifticonUsed(id: string, remainingAmount: number | null = null): Promise<Gifticon> {
   await ensureAuth();
-  return pb.collection(COLLECTION).update<Gifticon>(id, hasAmount ? { status: 'USED', remaining_amount: 0 } : { status: 'USED' });
+  const hasAmount = remainingAmount != null;
+  const updated = await pb.collection(COLLECTION).update<Gifticon>(id, hasAmount ? { status: 'USED', remaining_amount: 0 } : { status: 'USED' });
+  await recordUsage(id, remainingAmount ?? 0);
+  return updated;
+}
+
+async function recordUsage(gifticonId: string, amount: number): Promise<void> {
+  const user = pb.authStore.record?.id;
+  if (!user) return;
+  try {
+    await pb.collection(USAGES_COLLECTION).create({ gifticon: gifticonId, user, amount });
+  } catch {
+    // Usage history is best-effort: the gifticon update is the source of truth.
+  }
 }
 
 export async function deleteGifticon(id: string): Promise<boolean> {

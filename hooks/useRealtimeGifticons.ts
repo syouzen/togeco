@@ -20,7 +20,10 @@ export function useRealtimeGifticons(detailId?: string) {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: [COLLECTION] });
-        if (detailId) queryClient.invalidateQueries({ queryKey: [COLLECTION, detailId] });
+        if (detailId) {
+          queryClient.invalidateQueries({ queryKey: [COLLECTION, detailId] });
+          queryClient.invalidateQueries({ queryKey: ['usages', detailId] });
+        }
       }, INVALIDATE_DELAY_MS);
     };
 
