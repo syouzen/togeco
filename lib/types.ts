@@ -32,6 +32,15 @@ export type Usage = {
   expand?: { user?: UserSummary };
 };
 
+export type Reminder = {
+  id: string;
+  user: string;
+  gifticon: string;
+  remind_at: string;
+  sent: boolean;
+  created: string;
+};
+
 export type GifticonCreateInput = {
   name?: string;
   totalAmount: number | null;

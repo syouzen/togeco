@@ -114,3 +114,40 @@ cronAdd('expiring-gifticon-push', '0 9 * * *', () => {
     console.log('expiring gifticon push failed', err);
   }
 });
+
+cronAdd('personal-gifticon-reminders', '0 9 * * *', () => {
+  try {
+    const now = new Date().toISOString();
+    const reminders = $app.findRecordsByFilter(
+      'reminders',
+      'sent = false && remind_at <= {:now}',
+      'remind_at',
+      200,
+      0,
+      { now },
+    );
+
+    reminders.forEach((reminder) => {
+      try {
+        const user = reminder.get('user');
+        const tokens = $app.findRecordsByFilter('push_tokens', 'user = {:user}', '', 50, 0, { user });
+        const gifticon = $app.findRecordById('gifticons', reminder.get('gifticon'));
+        const name = gifticon.get('name') || '기프티콘';
+        const messages = tokens.map((token) => ({
+          to: token.get('token'),
+          title: '기프티콘 알림',
+          body: name + ' 잊지 말고 쓰세요!',
+          sound: null,
+          data: { type: 'reminder', gifticon: reminder.get('gifticon') },
+        })).filter((message) => message.to);
+        sendExpoPushMessages(messages);
+        reminder.set('sent', true);
+        $app.save(reminder);
+      } catch (err) {
+        console.log('personal reminder push failed', err);
+      }
+    });
+  } catch (err) {
+    console.log('personal reminder cron failed', err);
+  }
+});

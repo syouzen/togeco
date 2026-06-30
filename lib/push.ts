@@ -4,6 +4,11 @@ import * as Notifications from 'expo-notifications';
 
 import { ensureAuth, pb } from './pb';
 
+export async function hasPushPermission(): Promise<boolean> {
+  const current = await Notifications.getPermissionsAsync();
+  return current.status === 'granted';
+}
+
 const COLLECTION = 'push_tokens';
 
 function getProjectId() {
