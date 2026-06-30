@@ -10,7 +10,7 @@ export default tseslint.config(
   {
     files: ['pb_hooks/**/*.js'],
     languageOptions: {
-      globals: { routerAdd: 'readonly', DynamicModel: 'readonly', $os: 'readonly', $http: 'readonly', $apis: 'readonly' }
+      globals: { routerAdd: 'readonly', DynamicModel: 'readonly', $os: 'readonly', $http: 'readonly', $apis: 'readonly', $app: 'readonly', onRecordAfterCreateSuccess: 'readonly', cronAdd: 'readonly', console: 'readonly' }
     }
   },
   {
