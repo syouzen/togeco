@@ -8,12 +8,13 @@ import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import '@/lib/polyfills';
 import { pb, waitForAuthStore } from '@/lib/pb';
 import { registerPushToken } from '@/lib/push';
+import { syncReminders } from '@/lib/reminders';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
+    shouldPlaySound: true,
     shouldSetBadge: false,
   }),
 });
@@ -41,7 +42,10 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (ready && authed) registerPushToken();
+    if (ready && authed) {
+      registerPushToken();
+      syncReminders();
+    }
   }, [authed, ready]);
 
   const onLogin = segments[0] === 'login';
