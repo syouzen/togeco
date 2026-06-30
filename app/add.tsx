@@ -6,6 +6,7 @@ import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, St
 
 import { parseWonAmount } from '@/lib/domain';
 import { createGifticon } from '@/lib/gifticons';
+import { isAuthenticated } from '@/lib/pb';
 
 export default function AddScreen() {
   const queryClient = useQueryClient();
@@ -14,6 +15,11 @@ export default function AddScreen() {
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
   const mutation = useMutation({ mutationFn: createGifticon, onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: () => Alert.alert('저장 실패', '기프티콘을 저장하지 못했습니다. 네트워크와 PocketBase 설정을 확인해주세요.') });
+
+  if (!isAuthenticated()) {
+    router.replace('/login');
+    return null;
+  }
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) { Alert.alert('권한 필요', '이미지를 등록하려면 사진 접근 권한이 필요합니다.'); return; }

@@ -5,10 +5,19 @@ if (!pbUrl) console.warn('EXPO_PUBLIC_PB_URL이 설정되지 않았습니다. .e
 
 export const pb = new PocketBase(pbUrl ?? '');
 
+export function isAuthenticated() {
+  return pb.authStore.isValid;
+}
+
 export async function ensureAuth() {
   if (pb.authStore.isValid) return;
-  const email = process.env.EXPO_PUBLIC_PB_EMAIL;
-  const password = process.env.EXPO_PUBLIC_PB_PASSWORD;
-  if (!email || !password) throw new Error('PocketBase 공용 계정 환경변수가 설정되지 않았습니다.');
+  throw new Error('로그인이 필요합니다.');
+}
+
+export async function login(email: string, password: string) {
   await pb.collection('users').authWithPassword(email, password);
+}
+
+export function logout() {
+  pb.authStore.clear();
 }

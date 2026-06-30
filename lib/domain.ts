@@ -26,3 +26,9 @@ export function nextStatusAfterSpend(remainingAmount: number, spendAmount: numbe
 export function formatWon(amount: number): string {
   return `${amount.toLocaleString('ko-KR')}원`;
 }
+
+export function validateLoginInput(email: string, password: string): string | null {
+  if (email.trim().length === 0) return '이메일을 입력해주세요.';
+  if (password.length === 0) return '비밀번호를 입력해주세요.';
+  return null;
+}

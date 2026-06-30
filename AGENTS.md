@@ -10,7 +10,7 @@ Build a personal app for a small group to share gifticon images and jointly mana
 - Show a shared latest-first list with thumbnail, name, remaining/total amount, and status.
 - Show a detail screen with a large image and controls.
 - Support partial spending, mark-as-used, and delete.
-- No personal accounts, profiles, signup, or login UI. The app auto-signs into one shared PocketBase user at startup.
+- Login UI is required. Users sign in with a normal PocketBase `users` auth account before seeing gifticons.
 
 ## Stack
 
@@ -28,12 +28,10 @@ PocketBase is already built and verified by the owner. Do **not** rebuild the ba
 
 ### Environment variables
 
-The app must read these from local `.env` / Expo public env. Never commit real values.
+The app must read the PocketBase URL from local `.env` / Expo public env. Never commit real secrets.
 
 ```env
 EXPO_PUBLIC_PB_URL=https://your-pb-host
-EXPO_PUBLIC_PB_EMAIL=shared@account
-EXPO_PUBLIC_PB_PASSWORD=shared-password
 ```
 
 Keep `.env.example` placeholder-only.
@@ -57,7 +55,7 @@ API rules for List/View/Create/Update/Delete are already configured as authentic
 @request.auth.id != ""
 ```
 
-Important PocketBase behavior: unauthenticated List/Search may return HTTP 200 with `items: []` instead of an obvious 403. Therefore the app must always run `ensureAuth()` before any data query.
+Important PocketBase behavior: unauthenticated List/Search may return HTTP 200 with `items: []` instead of an obvious 403. Therefore the app must block data screens until the user has logged in.
 
 ## Required auth pattern
 
@@ -68,16 +66,12 @@ import PocketBase from 'pocketbase';
 
 export const pb = new PocketBase(process.env.EXPO_PUBLIC_PB_URL);
 
-export async function ensureAuth() {
-  if (pb.authStore.isValid) return;
-  await pb.collection('users').authWithPassword(
-    process.env.EXPO_PUBLIC_PB_EMAIL!,
-    process.env.EXPO_PUBLIC_PB_PASSWORD!,
-  );
+export async function login(email: string, password: string) {
+  await pb.collection('users').authWithPassword(email, password);
 }
 ```
 
-Gate the app in `app/_layout.tsx` so no query runs before auth is ready.
+Add a login page and gate list/add/detail screens so no gifticon query runs before auth is ready.
 
 ## App routes
 
@@ -85,7 +79,8 @@ Use this route shape unless the user changes the product direction:
 
 ```txt
 app/
-  _layout.tsx        # QueryClientProvider + Stack + auth boot gate
+  _layout.tsx        # QueryClientProvider + Stack
+  login.tsx          # email/password login
   index.tsx          # gifticon list
   add.tsx            # gifticon creation
   [id].tsx           # gifticon detail
@@ -132,7 +127,7 @@ await pb.collection('gifticons').update(id, {
 - [ ] Partial spend rejects invalid/over-balance amounts and marks `USED` when balance reaches zero.
 - [ ] Mark used and delete work.
 - [ ] A second device sees changes after focus/refetch or pull-to-refresh.
-- [ ] No login/signup UI exists; shared account auth is automatic.
+- [ ] Login screen exists; no signup UI exists; data screens require a valid PocketBase auth token.
 
 ## Branch and release workflow
 
@@ -162,7 +157,7 @@ Before opening a PR:
 
 ## Implementation discipline
 
-- Do not commit real PocketBase URL/email/password.
+- Do not commit real PocketBase URL, account email, or password.
 - Do not add backend migrations or backend setup code unless the user asks.
 - Prefer simple UI and small files; v1 is intentionally minimal.
 - Keep Korean user-facing copy natural and direct.

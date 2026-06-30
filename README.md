@@ -22,8 +22,6 @@ npm start
 
 ```env
 EXPO_PUBLIC_PB_URL=https://your-pb-host
-EXPO_PUBLIC_PB_EMAIL=shared@account
-EXPO_PUBLIC_PB_PASSWORD=shared-password
 ```
 
 ## Scripts

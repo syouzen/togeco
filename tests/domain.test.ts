@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatWon, nextStatusAfterSpend, parseWonAmount, validateSpendAmount } from '../lib/domain';
+import { formatWon, nextStatusAfterSpend, parseWonAmount, validateLoginInput, validateSpendAmount } from '../lib/domain';
 
 describe('gifticon amount domain', () => {
   it('parses positive won amounts and ignores commas', () => {
@@ -22,5 +22,11 @@ describe('gifticon amount domain', () => {
   });
   it('formats Korean won values', () => {
     expect(formatWon(1234567)).toBe('1,234,567원');
+  });
+
+  it('validates login input before requesting PocketBase auth', () => {
+    expect(validateLoginInput('', 'password')).toBe('이메일을 입력해주세요.');
+    expect(validateLoginInput('shared@example.com', '')).toBe('비밀번호를 입력해주세요.');
+    expect(validateLoginInput('shared@example.com', 'password')).toBeNull();
   });
 });

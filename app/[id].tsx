@@ -6,14 +6,21 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { AmountModal } from '@/components/AmountModal';
 import { formatWon } from '@/lib/domain';
 import { deleteGifticon, getGifticon, getGifticonImageUrl, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
+import { isAuthenticated } from '@/lib/pb';
 
 export default function DetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [spendOpen, setSpendOpen] = useState(false);
-  const query = useQuery({ queryKey: ['gifticons', id], queryFn: () => getGifticon(id), enabled: Boolean(id) });
+  const query = useQuery({ queryKey: ['gifticons', id], queryFn: () => getGifticon(id), enabled: Boolean(id) && isAuthenticated() });
   const { refetch } = query;
-  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  useFocusEffect(useCallback(() => {
+    if (!isAuthenticated()) {
+      router.replace('/login');
+      return;
+    }
+    refetch();
+  }, [refetch]));
   const invalidate = async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); await queryClient.invalidateQueries({ queryKey: ['gifticons', id] }); };
   const spendMutation = useMutation({ mutationFn: (amount: number) => spendGifticon(id, query.data?.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendOpen(false); await invalidate(); }, onError: () => Alert.alert('차감 실패', '잔액 차감에 실패했습니다. 다시 시도해주세요.') });
   const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id), onSuccess: invalidate, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });

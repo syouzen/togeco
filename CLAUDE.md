@@ -10,8 +10,8 @@ The owner expects a clean rewrite. Do not preserve old app structure just becaus
 
 ## Non-negotiables
 
-1. No login or signup screen.
-2. On boot, automatically authenticate to PocketBase with the shared account from Expo public env vars.
+1. Login screen is required; signup screen is not.
+2. Authenticate to PocketBase with user-entered email/password.
 3. Do not commit real `.env` secrets.
 4. All normal PRs target `develop`, not `main`.
 5. Release flow is `develop` → `main`.
@@ -19,28 +19,25 @@ The owner expects a clean rewrite. Do not preserve old app structure just becaus
 
 ## PocketBase client reminder
 
-Use `EXPO_PUBLIC_PB_URL`, `EXPO_PUBLIC_PB_EMAIL`, and `EXPO_PUBLIC_PB_PASSWORD`.
+Use `EXPO_PUBLIC_PB_URL` for the PocketBase host. Do not store account email/password in public env.
 
 ```ts
 import PocketBase from 'pocketbase';
 
 export const pb = new PocketBase(process.env.EXPO_PUBLIC_PB_URL);
 
-export async function ensureAuth() {
-  if (pb.authStore.isValid) return;
-  await pb.collection('users').authWithPassword(
-    process.env.EXPO_PUBLIC_PB_EMAIL!,
-    process.env.EXPO_PUBLIC_PB_PASSWORD!,
-  );
+export async function login(email: string, password: string) {
+  await pb.collection('users').authWithPassword(email, password);
 }
 ```
 
-PocketBase List/Search rule failures can look like an empty list, so gate queries behind `ensureAuth()`.
+PocketBase List/Search rule failures can look like an empty list, so redirect unauthenticated users to `/login` before running gifticon queries.
 
 ## Target screens
 
 ```txt
-app/_layout.tsx  # auth gate + QueryClientProvider + Stack
+app/_layout.tsx  # QueryClientProvider + Stack
+app/login.tsx    # email/password login
 app/index.tsx    # list
 app/add.tsx      # create
 app/[id].tsx     # detail
