@@ -5,11 +5,17 @@ import type { Gifticon, Reminder } from './types';
 
 const COLLECTION = 'reminders';
 const DEFAULT_REMINDER_HOUR = 9;
+export const DEFAULT_EXPIRY_REMINDER_OFFSETS = [30, 7, 3, 1] as const;
+export const CUSTOM_REMINDER_OFFSET = 0;
 
 function currentUserId() {
   const user = pb.authStore.record?.id;
   if (!user) throw new Error('로그인이 필요합니다.');
   return user;
+}
+
+function escapeFilterValue(value: string) {
+  return value.replaceAll('"', '\\"');
 }
 
 export async function ensureNotifPermission() {
@@ -53,28 +59,70 @@ async function scheduleLocalReminder(id: string, name: string, remindAt: Date) {
   });
 }
 
-export async function myReminder(gifticonId: string): Promise<Reminder | null> {
+function reminderFilter(gifticonId: string, user: string, offsetDays?: number) {
+  const base = `gifticon="${escapeFilterValue(gifticonId)}" && user="${escapeFilterValue(user)}"`;
+  return offsetDays == null ? base : `${base} && offset_days=${offsetDays}`;
+}
+
+export async function myReminders(gifticonId: string): Promise<Reminder[]> {
   await ensureAuth();
   const user = currentUserId();
+  return pb.collection(COLLECTION).getFullList<Reminder>({
+    filter: reminderFilter(gifticonId, user),
+    sort: '-offset_days,remind_at',
+  });
+}
+
+export async function myReminder(gifticonId: string): Promise<Reminder | null> {
+  const reminders = await myReminders(gifticonId);
+  return reminders[0] ?? null;
+}
+
+async function findReminder(gifticonId: string, user: string, offsetDays: number): Promise<Reminder | null> {
   return pb.collection(COLLECTION)
-    .getFirstListItem<Reminder>(`gifticon="${gifticonId}" && user="${user}"`)
+    .getFirstListItem<Reminder>(reminderFilter(gifticonId, user, offsetDays))
     .catch(() => null);
 }
 
-export async function setReminder(gifticonId: string, name: string, remindAt: Date): Promise<Reminder> {
+export async function setReminder(gifticonId: string, name: string, remindAt: Date, offsetDays = CUSTOM_REMINDER_OFFSET): Promise<Reminder> {
   await ensureAuth();
   if (isPastReminderDate(remindAt)) throw new Error('미래 날짜만 설정할 수 있습니다.');
   if (!(await ensureNotifPermission())) throw new Error('알림 권한이 필요해요.');
 
   const user = currentUserId();
-  const existing = await myReminder(gifticonId);
-  const payload = { user, gifticon: gifticonId, remind_at: remindAt.toISOString() };
+  const existing = await findReminder(gifticonId, user, offsetDays);
+  const payload = { user, gifticon: gifticonId, remind_at: remindAt.toISOString(), offset_days: offsetDays };
   const reminder = existing
     ? await pb.collection(COLLECTION).update<Reminder>(existing.id, payload)
     : await pb.collection(COLLECTION).create<Reminder>(payload);
 
   await scheduleLocalReminder(reminder.id, name, remindAt);
   return reminder;
+}
+
+export async function setDefaultExpiryReminders(gifticonId: string, name: string, expiredAt?: string | null): Promise<Reminder[]> {
+  await ensureAuth();
+  if (!expiredAt) return [];
+  if (!(await ensureNotifPermission())) throw new Error('알림 권한이 필요해요.');
+
+  const user = currentUserId();
+  const saved: Reminder[] = [];
+
+  for (const offsetDays of DEFAULT_EXPIRY_REMINDER_OFFSETS) {
+    const remindAt = beforeExpiry(expiredAt, offsetDays);
+    if (isPastReminderDate(remindAt)) continue;
+
+    const existing = await findReminder(gifticonId, user, offsetDays);
+    const payload = { user, gifticon: gifticonId, remind_at: remindAt.toISOString(), offset_days: offsetDays };
+    const reminder = existing
+      ? await pb.collection(COLLECTION).update<Reminder>(existing.id, payload)
+      : await pb.collection(COLLECTION).create<Reminder>(payload);
+
+    await scheduleLocalReminder(reminder.id, name, remindAt);
+    saved.push(reminder);
+  }
+
+  return saved;
 }
 
 export async function cancelReminder(id: string): Promise<void> {
@@ -89,7 +137,7 @@ export async function syncReminders(): Promise<void> {
     if (!pb.authStore.isValid) return;
     if (!(await ensureNotifPermission())) return;
     const user = currentUserId();
-    const reminders = await pb.collection(COLLECTION).getFullList<Reminder>({ filter: `user="${user}"` });
+    const reminders = await pb.collection(COLLECTION).getFullList<Reminder>({ filter: `user="${escapeFilterValue(user)}"` });
 
     for (const reminder of reminders) {
       const remindAt = new Date(reminder.remind_at);

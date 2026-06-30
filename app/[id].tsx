@@ -10,7 +10,7 @@ import { formatGifticonAmount, formatWon } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
 import { isAuthenticated, pb } from '@/lib/pb';
-import { beforeExpiry, cancelReminder, dateOnly, isPastReminderDate, myReminder, reminderDateFromDateOnly, setReminder } from '@/lib/reminders';
+import { beforeExpiry, cancelReminder, CUSTOM_REMINDER_OFFSET, dateOnly, DEFAULT_EXPIRY_REMINDER_OFFSETS, isPastReminderDate, myReminders, reminderDateFromDateOnly, setReminder } from '@/lib/reminders';
 import { displayUser } from '@/lib/users';
 
 function formatUsageTime(value: string) {
@@ -19,6 +19,10 @@ function formatUsageTime(value: string) {
 
 function formatReminderDate(value?: string) {
   return value ? value.slice(0, 10) : '';
+}
+
+function formatReminderLabel(offsetDays: number) {
+  return offsetDays === CUSTOM_REMINDER_OFFSET ? '직접 설정' : `만료 ${offsetDays}일 전`;
 }
 
 export default function DetailScreen() {
@@ -30,7 +34,7 @@ export default function DetailScreen() {
   const [customReminderDate, setCustomReminderDate] = useState(dateOnly(new Date()));
   const query = useQuery({ queryKey: ['gifticons', id], queryFn: () => getGifticon(id), enabled: Boolean(id) && isAuthenticated() });
   const usageQuery = useQuery({ queryKey: ['usages', id], queryFn: () => listGifticonUsages(id), enabled: Boolean(id) && isAuthenticated() });
-  const reminderQuery = useQuery({ queryKey: ['reminders', id], queryFn: () => myReminder(id), enabled: Boolean(id) && isAuthenticated() });
+  const reminderQuery = useQuery({ queryKey: ['reminders', id], queryFn: () => myReminders(id), enabled: Boolean(id) && isAuthenticated() });
   const { refetch } = query;
   useRealtimeGifticons(id);
   useFocusEffect(useCallback(() => {
@@ -52,7 +56,7 @@ export default function DetailScreen() {
   const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount ? query.data?.remaining_amount ?? 0 : null), onSuccess: invalidate, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });
   const claimMutation = useMutation({ mutationFn: () => claimGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('찜 실패', '찜 상태를 저장하지 못했습니다.') });
   const unclaimMutation = useMutation({ mutationFn: () => unclaimGifticon(id), onSuccess: invalidate, onError: () => Alert.alert('찜 해제 실패', '찜을 해제하지 못했습니다.') });
-  const reminderMutation = useMutation({ mutationFn: (remindAt: Date) => setReminder(id, itemName, remindAt), onSuccess: async () => { setCustomReminderOpen(false); await invalidate(); Alert.alert('알림 설정 완료', 'DB에 저장하고 이 기기에 로컬 알림을 예약했습니다.'); }, onError: (error) => Alert.alert('알림 설정 실패', error instanceof Error ? error.message : '리마인더를 저장하지 못했습니다.') });
+  const reminderMutation = useMutation({ mutationFn: ({ remindAt, offsetDays }: { remindAt: Date; offsetDays?: number }) => setReminder(id, itemName, remindAt, offsetDays), onSuccess: async () => { setCustomReminderOpen(false); await invalidate(); Alert.alert('알림 설정 완료', 'DB에 저장하고 이 기기에 로컬 알림을 예약했습니다.'); }, onError: (error) => Alert.alert('알림 설정 실패', error instanceof Error ? error.message : '리마인더를 저장하지 못했습니다.') });
   const cancelReminderMutation = useMutation({ mutationFn: (reminderId: string) => cancelReminder(reminderId), onSuccess: invalidate, onError: () => Alert.alert('알림 끄기 실패', '리마인더를 삭제하지 못했습니다.') });
   const deleteMutation = useMutation({ mutationFn: () => deleteGifticon(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: () => Alert.alert('삭제 실패', '삭제에 실패했습니다.') });
   const confirmDelete = () => Alert.alert('삭제할까요?', '삭제한 기프티콘은 되돌릴 수 없습니다.', [{ text: '취소', style: 'cancel' }, { text: '삭제', style: 'destructive', onPress: () => deleteMutation.mutate() }]);
@@ -68,7 +72,8 @@ export default function DetailScreen() {
   const claimedByMe = Boolean(item.claimed_by && item.claimed_by === currentUserId);
   const claimedByOther = Boolean(item.claimed_by && item.claimed_by !== currentUserId);
   const claimText = claimedByMe ? '내가 사용 예정' : claimedByOther ? `${displayUser(claimedUser)}이 사용 예정` : '아직 찜 없음';
-  const reminder = reminderQuery.data;
+  const reminders = reminderQuery.data ?? [];
+  const customReminder = reminders.find((itemReminder) => itemReminder.offset_days === CUSTOM_REMINDER_OFFSET);
   const itemName = item.name?.trim() || '기프티콘';
   const canSpend = hasAmount && !used;
   const confirmClaimedByOther = (action: () => void) => {
@@ -78,23 +83,23 @@ export default function DetailScreen() {
       { text: '사용', style: 'destructive', onPress: action },
     ]);
   };
-  const applyReminder = (remindAt: Date) => {
+  const applyReminder = (remindAt: Date, offsetDays = CUSTOM_REMINDER_OFFSET) => {
     if (isPastReminderDate(remindAt)) {
       Alert.alert('지난 날짜예요', '오늘 이후 날짜로 알림을 설정해주세요.');
       return;
     }
-    reminderMutation.mutate(remindAt);
+    reminderMutation.mutate({ remindAt, offsetDays });
   };
   const openCustomReminder = () => {
-    setCustomReminderDate(reminder?.remind_at ? formatReminderDate(reminder.remind_at) : dateOnly(new Date()));
+    setCustomReminderDate(customReminder?.remind_at ? formatReminderDate(customReminder.remind_at) : dateOnly(new Date()));
     setCustomReminderOpen(true);
   };
   const openReminderOptions = async () => {
     const buttons = [
-      ...(item.expired_at ? [
-        { text: '만료 7일 전', onPress: () => applyReminder(beforeExpiry(item.expired_at!, 7)) },
-        { text: '만료 1일 전', onPress: () => applyReminder(beforeExpiry(item.expired_at!, 1)) },
-      ] : []),
+      ...(item.expired_at ? DEFAULT_EXPIRY_REMINDER_OFFSETS.map((offsetDays) => ({
+        text: `만료 ${offsetDays}일 전`,
+        onPress: () => applyReminder(beforeExpiry(item.expired_at!, offsetDays), offsetDays),
+      })) : []),
       { text: '날짜 직접 입력', onPress: openCustomReminder },
       { text: '취소', style: 'cancel' as const },
     ];
@@ -122,11 +127,18 @@ export default function DetailScreen() {
         </View>
         <View style={styles.panel}>
           <Text style={styles.sectionTitle}>개인 알림</Text>
-          <Text style={styles.reminderText}>{reminder ? `${formatReminderDate(reminder.remind_at)} 알림 예정` : '알림이 설정되지 않았습니다.'}</Text>
-          <Text style={styles.reminderHelp}>내 기기에 로컬 알림으로 1회 예약됩니다. 앱을 다시 설치하거나 새 기기에서 로그인하면 DB에서 복원합니다.</Text>
+          {reminders.length ? reminders.map((itemReminder) => (
+            <View key={itemReminder.id} style={styles.reminderRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reminderText}>{formatReminderLabel(itemReminder.offset_days)}</Text>
+                <Text style={styles.reminderHelp}>{formatReminderDate(itemReminder.remind_at)} 알림 예정</Text>
+              </View>
+              <Pressable style={[styles.smallDanger, cancelReminderMutation.isPending && styles.disabled]} disabled={cancelReminderMutation.isPending} onPress={() => cancelReminderMutation.mutate(itemReminder.id)}><Text style={styles.dangerText}>끄기</Text></Pressable>
+            </View>
+          )) : <Text style={styles.reminderText}>알림이 설정되지 않았습니다.</Text>}
+          <Text style={styles.reminderHelp}>등록 시 유효기간 기준 30/7/3/1일 전 알림을 자동 예약합니다. 앱을 다시 설치하거나 새 기기에서 로그인하면 DB에서 복원합니다.</Text>
           <View style={styles.inlineActions}>
-            <Pressable style={[styles.inlineAction, styles.claim]} disabled={reminderMutation.isPending} onPress={openReminderOptions}><Text style={styles.claimButtonText}>{reminder ? '알림 변경' : '알림 설정'}</Text></Pressable>
-            {reminder ? <Pressable style={[styles.inlineAction, styles.danger]} disabled={cancelReminderMutation.isPending} onPress={() => cancelReminderMutation.mutate(reminder.id)}><Text style={styles.dangerText}>알림 끄기</Text></Pressable> : null}
+            <Pressable style={[styles.inlineAction, styles.claim]} disabled={reminderMutation.isPending} onPress={openReminderOptions}><Text style={styles.claimButtonText}>{reminders.length ? '알림 추가/변경' : '알림 설정'}</Text></Pressable>
           </View>
         </View>
         <View style={styles.actions}>
@@ -184,6 +196,8 @@ const styles = StyleSheet.create({
   claimOther: { color: '#b45309' },
   reminderText: { color: '#111827', fontWeight: '900' },
   reminderHelp: { color: '#6b7280', lineHeight: 20 },
+  reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: '#f3f4f6', paddingTop: 10 },
+  smallDanger: { borderRadius: 999, backgroundColor: '#fee2e2', paddingHorizontal: 12, paddingVertical: 8 },
   memo: { color: '#6b7280', lineHeight: 21 },
   badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   availableBadge: { backgroundColor: '#dcfce7' },
