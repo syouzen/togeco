@@ -111,6 +111,10 @@ export function canUseGifticon(status: 'DRAFT' | 'AVAILABLE' | 'USED'): boolean 
   return status === 'AVAILABLE';
 }
 
+export function quickSpendPresets(remainingAmount: number): number[] {
+  return Array.from(new Set([1000, 3000, 5000, remainingAmount].filter((amount) => amount > 0 && amount <= remainingAmount)));
+}
+
 export function validateLoginInput(email: string, password: string): string | null {
   if (email.trim().length === 0) return '이메일을 입력해주세요.';
   if (password.length === 0) return '비밀번호를 입력해주세요.';
