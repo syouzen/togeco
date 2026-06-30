@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { canUseGifticon, claimExpiresAt, claimState, formatWon, gifticonStatusLabel, quickSpendPresets, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
+import { canUseGifticon, claimExpiresAt, claimState, filterGifticons, formatWon, gifticonStatusLabel, quickSpendPresets, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
 
 describe('gifticon amount domain', () => {
   it('parses positive won amounts and ignores commas', () => {
@@ -46,6 +46,28 @@ describe('gifticon amount domain', () => {
     expect(validateLoginInput('', 'password')).toBe('이메일을 입력해주세요.');
     expect(validateLoginInput('shared@example.com', '')).toBe('비밀번호를 입력해주세요.');
     expect(validateLoginInput('shared@example.com', 'password')).toBeNull();
+  });
+});
+
+describe('gifticon list filters', () => {
+  const items = [
+    { id: 'a', name: '스타벅스', memo: '강남점', barcode: '111', expired_at: '2026-07-03', claimed_by: 'me', remaining_amount: 3000, total_amount: 10000 },
+    { id: 'b', name: '치킨 교환권', memo: '가족', barcode: '222', expired_at: '2026-08-01', claimed_by: null, remaining_amount: null, total_amount: null },
+    { id: 'c', name: '편의점', memo: '야식', barcode: '333', expired_at: '2026-07-20', claimed_by: 'other', remaining_amount: 5000, total_amount: 5000 },
+  ];
+
+  it('searches by name, memo, and barcode', () => {
+    expect(filterGifticons(items, { query: '강남' }).map((item) => item.id)).toEqual(['a']);
+    expect(filterGifticons(items, { query: '222' }).map((item) => item.id)).toEqual(['b']);
+    expect(filterGifticons(items, { query: '편의' }).map((item) => item.id)).toEqual(['c']);
+  });
+
+  it('filters by soon expiry, my claim, and amount kind', () => {
+    const now = new Date('2026-06-30T00:00:00.000Z');
+    expect(filterGifticons(items, { expiry: 'soon', now }).map((item) => item.id)).toEqual(['a']);
+    expect(filterGifticons(items, { claimed: 'mine', currentUserId: 'me' }).map((item) => item.id)).toEqual(['a']);
+    expect(filterGifticons(items, { amountKind: 'exchange' }).map((item) => item.id)).toEqual(['b']);
+    expect(filterGifticons(items, { amountKind: 'amount' }).map((item) => item.id)).toEqual(['a', 'c']);
   });
 });
 
