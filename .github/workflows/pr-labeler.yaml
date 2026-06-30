@@ -14,9 +14,12 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Check Labels
         id: labeler
         uses: jimschubert/labeler-action@v1
+        continue-on-error: true
         with:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
       - name: PR Gifs
