@@ -37,7 +37,7 @@ export type Usage = {
   reverted_by?: string | null;
   reversal_of?: string | null;
   created: string;
-  expand?: { user?: UserSummary; reverted_by?: UserSummary; reversal_of?: Usage };
+  expand?: { user?: UserSummary; reverted_by?: UserSummary; reversal_of?: Usage; gifticon?: Gifticon };
 };
 
 export type Reminder = {

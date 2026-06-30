@@ -77,6 +77,14 @@ export async function listGifticonUsages(id: string): Promise<Usage[]> {
   });
 }
 
+export async function listRecentUsages(limit = 5): Promise<Usage[]> {
+  await ensureAuth();
+  return pb.collection(USAGES_COLLECTION).getList<Usage>(1, limit, {
+    sort: '-created',
+    expand: 'user,gifticon',
+  }).then((result) => result.items);
+}
+
 export function getGifticonImageUrl(record: Gifticon): string {
   return pb.files.getURL(record, record.image);
 }
