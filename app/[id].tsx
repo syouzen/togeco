@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AmountModal } from '@/components/AmountModal';
-import { formatWon } from '@/lib/domain';
+import { formatGifticonAmount } from '@/lib/domain';
 import { deleteGifticon, getGifticon, getGifticonImageUrl, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
 import { isAuthenticated } from '@/lib/pb';
 
@@ -22,30 +22,34 @@ export default function DetailScreen() {
     refetch();
   }, [refetch]));
   const invalidate = async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); await queryClient.invalidateQueries({ queryKey: ['gifticons', id] }); };
+  const hasAmount = query.data?.remaining_amount != null && query.data?.total_amount != null;
   const spendMutation = useMutation({ mutationFn: (amount: number) => spendGifticon(id, query.data?.remaining_amount ?? 0, amount), onSuccess: async () => { setSpendOpen(false); await invalidate(); }, onError: () => Alert.alert('차감 실패', '잔액 차감에 실패했습니다. 다시 시도해주세요.') });
-  const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id), onSuccess: invalidate, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });
+  const usedMutation = useMutation({ mutationFn: () => markGifticonUsed(id, hasAmount), onSuccess: invalidate, onError: () => Alert.alert('처리 실패', '다 씀 처리에 실패했습니다.') });
   const deleteMutation = useMutation({ mutationFn: () => deleteGifticon(id), onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['gifticons'] }); router.back(); }, onError: () => Alert.alert('삭제 실패', '삭제에 실패했습니다.') });
   const confirmDelete = () => Alert.alert('삭제할까요?', '삭제한 기프티콘은 되돌릴 수 없습니다.', [{ text: '취소', style: 'cancel' }, { text: '삭제', style: 'destructive', onPress: () => deleteMutation.mutate() }]);
   if (query.isLoading) return <View style={styles.center}><ActivityIndicator size="large" color="#111827" /></View>;
   if (!query.data) return <View style={styles.center}><Text style={styles.title}>기프티콘을 찾지 못했습니다.</Text></View>;
   const item = query.data;
   const used = item.status === 'USED';
+  const canSpend = hasAmount && !used;
   return (
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Image source={{ uri: getGifticonImageUrl(item) }} style={styles.image} />
         <View style={styles.panel}>
           <View style={styles.titleRow}><Text style={styles.title}>{item.name?.trim() || '이름 없는 기프티콘'}</Text><View style={[styles.badge, used ? styles.usedBadge : styles.availableBadge]}><Text style={[styles.badgeText, used ? styles.usedText : styles.availableText]}>{used ? '다 씀' : '사용가능'}</Text></View></View>
-          <Text style={styles.amount}>{formatWon(item.remaining_amount)} / {formatWon(item.total_amount)}</Text>
+          <Text style={styles.amount}>{formatGifticonAmount(item.remaining_amount, item.total_amount)}</Text>
+          {item.expiry ? <Text style={styles.meta}>유효기간 {item.expiry.slice(0, 10)}</Text> : null}
+          {item.barcode ? <Text style={styles.meta}>바코드 {item.barcode}</Text> : null}
           {item.memo ? <Text style={styles.memo}>{item.memo}</Text> : null}
         </View>
         <View style={styles.actions}>
-          <Pressable style={[styles.action, styles.primary, used && styles.disabled]} disabled={used || spendMutation.isPending} onPress={() => setSpendOpen(true)}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
+          <Pressable style={[styles.action, styles.primary, !canSpend && styles.disabled]} disabled={!canSpend || spendMutation.isPending} onPress={() => setSpendOpen(true)}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
           <Pressable style={[styles.action, styles.secondary]} disabled={usedMutation.isPending} onPress={() => usedMutation.mutate()}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
           <Pressable style={[styles.action, styles.danger]} disabled={deleteMutation.isPending} onPress={confirmDelete}><Text style={styles.dangerText}>삭제</Text></Pressable>
         </View>
       </ScrollView>
-      <AmountModal visible={spendOpen} remainingAmount={item.remaining_amount} isSaving={spendMutation.isPending} onClose={() => setSpendOpen(false)} onSubmit={(amount) => spendMutation.mutate(amount)} />
+      {hasAmount ? <AmountModal visible={spendOpen} remainingAmount={item.remaining_amount ?? 0} isSaving={spendMutation.isPending} onClose={() => setSpendOpen(false)} onSubmit={(amount) => spendMutation.mutate(amount)} /> : null}
     </>
   );
 }
@@ -59,6 +63,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   title: { flex: 1, fontSize: 24, fontWeight: '900', color: '#111827' },
   amount: { fontSize: 20, fontWeight: '900', color: '#374151' },
+  meta: { color: '#4f46e5', fontWeight: '800' },
   memo: { color: '#6b7280', lineHeight: 21 },
   badge: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   availableBadge: { backgroundColor: '#dcfce7' },

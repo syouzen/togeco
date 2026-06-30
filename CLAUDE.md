@@ -16,6 +16,7 @@ The owner expects a clean rewrite. Do not preserve old app structure just becaus
 4. All normal PRs target `develop`, not `main`.
 5. Release flow is `develop` → `main`.
 6. PocketBase backend is already configured; implement the app client only unless asked otherwise.
+7. Scan auto-fill must never auto-save; users confirm/edit before create.
 
 ## PocketBase client reminder
 
@@ -55,10 +56,12 @@ app/[id].tsx     # detail
 
 - `name?: string`
 - `image: string`
-- `total_amount: number`
-- `remaining_amount: number`
+- `total_amount?: number | null`
+- `remaining_amount?: number | null`
 - `status: 'AVAILABLE' | 'USED'`
 - `memo?: string`
+- `expiry?: string | null`
+- `barcode?: string`
 - `created: string`
 
 Image URL:
@@ -75,6 +78,12 @@ await pb.collection('gifticons').update(id, {
   ...(newRemaining <= 0 ? { status: 'USED' } : {}),
 });
 ```
+
+Exchange coupons have no amount and must not show partial spend.
+
+## Scan auto-fill
+
+`/add` includes a gallery scan button. Text fields go through authenticated PocketBase `/api/scan` backed by Gemini; barcode is extracted on-device with `@react-native-ml-kit/barcode-scanning`. This native module requires a dev build/EAS dev client, not Expo Go. The Gemini API key belongs only in the PocketBase container as `GEMINI_API_KEY`.
 
 ## Branch workflow
 
