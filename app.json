@@ -1,0 +1,17 @@
+{
+  "expo": {
+    "name": "Togeco",
+    "slug": "togeco",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "togeco",
+    "userInterfaceStyle": "automatic",
+    "ios": { "supportsTablet": true, "bundleIdentifier": "com.syouzen.togeco" },
+    "android": { "package": "com.syouzen.togeco", "adaptiveIcon": { "backgroundColor": "#111827" } },
+    "plugins": [
+      "expo-router",
+      ["expo-image-picker", { "photosPermission": "기프티콘 이미지를 등록하려면 사진 접근 권한이 필요합니다." }]
+    ],
+    "experiments": { "typedRoutes": true }
+  }
+}
