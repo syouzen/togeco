@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 
 import { AmountModal } from '@/components/AmountModal';
 import { BarcodeZoom } from '@/components/BarcodeZoom';
+import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
 import { formatGifticonAmount } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { deleteGifticon, getGifticon, getGifticonImageUrl, markGifticonUsed, spendGifticon } from '@/lib/gifticons';
@@ -17,6 +18,7 @@ export default function DetailScreen() {
   const [barcodeZoomOpen, setBarcodeZoomOpen] = useState(false);
   const query = useQuery({ queryKey: ['gifticons', id], queryFn: () => getGifticon(id), enabled: Boolean(id) && isAuthenticated() });
   const { refetch } = query;
+  useRealtimeGifticons(id);
   useFocusEffect(useCallback(() => {
     if (!isAuthenticated()) {
       router.replace('/login');

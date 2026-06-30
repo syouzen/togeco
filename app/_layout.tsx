@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 
+import '@/lib/polyfills';
 import { pb, waitForAuthStore } from '@/lib/pb';
 
 export default function RootLayout() {
