@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { claimExpiresAt, claimState, formatWon, gifticonStatusLabel, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
+import { canUseGifticon, claimExpiresAt, claimState, formatWon, gifticonStatusLabel, nextStatusAfterSpend, parseWonAmount, usageLedgerEntry, revertLedgerEntry, validateLoginInput, validateSpendAmount } from '../lib/domain';
 
 describe('gifticon amount domain', () => {
   it('parses positive won amounts and ignores commas', () => {
@@ -28,6 +28,12 @@ describe('gifticon amount domain', () => {
     expect(gifticonStatusLabel('DRAFT')).toBe('작성중');
     expect(gifticonStatusLabel('AVAILABLE')).toBe('사용가능');
     expect(gifticonStatusLabel('USED')).toBe('다 씀');
+  });
+
+  it('allows usage actions only for available gifticons', () => {
+    expect(canUseGifticon('AVAILABLE')).toBe(true);
+    expect(canUseGifticon('DRAFT')).toBe(false);
+    expect(canUseGifticon('USED')).toBe(false);
   });
 
   it('validates login input before requesting PocketBase auth', () => {

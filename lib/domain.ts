@@ -107,6 +107,10 @@ export function gifticonStatusLabel(status: 'DRAFT' | 'AVAILABLE' | 'USED'): str
   return '사용가능';
 }
 
+export function canUseGifticon(status: 'DRAFT' | 'AVAILABLE' | 'USED'): boolean {
+  return status === 'AVAILABLE';
+}
+
 export function validateLoginInput(email: string, password: string): string | null {
   if (email.trim().length === 0) return '이메일을 입력해주세요.';
   if (password.length === 0) return '비밀번호를 입력해주세요.';

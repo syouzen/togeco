@@ -6,7 +6,7 @@ import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Tex
 import { AmountModal } from '@/components/AmountModal';
 import { BarcodeZoom } from '@/components/BarcodeZoom';
 import { useRealtimeGifticons } from '@/hooks/useRealtimeGifticons';
-import { claimState, formatGifticonAmount, formatWon, gifticonStatusLabel } from '@/lib/domain';
+import { canUseGifticon, claimState, formatGifticonAmount, formatWon, gifticonStatusLabel } from '@/lib/domain';
 import { expiryInfo, formatExpiryDday } from '@/lib/expiry';
 import { claimGifticon, deleteGifticon, getGifticon, getGifticonImageUrl, listGifticonUsages, markGifticonUsed, publishDraftGifticon, revertUsage, spendGifticon, unclaimGifticon } from '@/lib/gifticons';
 import { isAuthenticated, pb } from '@/lib/pb';
@@ -94,7 +94,8 @@ export default function DetailScreen() {
   const claimText = claimedByMe ? '내가 사용 예정' : claimedByOther ? `${displayUser(claimedUser)}이 사용 예정` : '아직 찜 없음';
   const reminders = reminderQuery.data ?? [];
   const itemName = item.name?.trim() || '기프티콘';
-  const canSpend = hasAmount && !used && !draft;
+  const usageActionsEnabled = canUseGifticon(item.status);
+  const canSpend = hasAmount && usageActionsEnabled;
   const confirmClaimedByOther = (action: () => void) => {
     if (!claimedByOther) { action(); return; }
     Alert.alert('다른 사람이 찜했어요', `${displayUser(claimedUser)}이 찜했어요. 그래도 사용할까요?`, [
@@ -154,7 +155,7 @@ export default function DetailScreen() {
           {claimedByMe ? <Pressable style={[styles.action, styles.secondary]} disabled={unclaimMutation.isPending} onPress={() => unclaimMutation.mutate()}><Text style={styles.secondaryText}>찜 해제</Text></Pressable> : !claim.active && !draft ? <Pressable style={[styles.action, styles.claim]} disabled={claimMutation.isPending} onPress={() => claimMutation.mutate()}><Text style={styles.claimButtonText}>찜하기</Text></Pressable> : null}
           <Pressable style={[styles.action, styles.zoom]} onPress={() => setBarcodeZoomOpen(true)}><Text style={styles.zoomText}>바코드 크게</Text></Pressable>
           <Pressable style={[styles.action, styles.primary, !canSpend && styles.disabled]} disabled={!canSpend || spendMutation.isPending} onPress={() => confirmClaimedByOther(() => setSpendOpen(true))}><Text style={styles.primaryText}>부분 차감</Text></Pressable>
-          <Pressable style={[styles.action, styles.secondary]} disabled={usedMutation.isPending} onPress={() => confirmClaimedByOther(() => usedMutation.mutate())}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
+          <Pressable style={[styles.action, styles.secondary, !usageActionsEnabled && styles.disabled]} disabled={!usageActionsEnabled || usedMutation.isPending} onPress={() => confirmClaimedByOther(() => usedMutation.mutate())}><Text style={styles.secondaryText}>다 씀</Text></Pressable>
           <Pressable style={[styles.action, styles.danger]} disabled={deleteMutation.isPending} onPress={confirmDelete}><Text style={styles.dangerText}>삭제</Text></Pressable>
         </View>
         <View style={styles.panel}>
